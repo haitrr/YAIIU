@@ -106,7 +106,9 @@ struct AssetResource: Identifiable {
     }
     
     var resourceTypeString: String {
-        if isRAW {
+        if LivePhotoResourcePolicy.isPairedVideo(resource.type) {
+            return LivePhotoResourcePolicy.resourceType
+        } else if isRAW {
             return "raw"
         } else if isVideo {
             return "video"

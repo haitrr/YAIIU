@@ -23,6 +23,7 @@ class UploadItem: Identifiable, ObservableObject {
     let localIdentifier: String
     let filename: String
     let isVideo: Bool
+    let isLivePhoto: Bool
     let hasRAW: Bool
     
     @Published var status: UploadStatus = .pending
@@ -37,6 +38,7 @@ class UploadItem: Identifiable, ObservableObject {
         self.localIdentifier = asset.localIdentifier
         self.filename = filename
         self.isVideo = asset.mediaType == .video
+        self.isLivePhoto = asset.mediaSubtypes.contains(.photoLive)
         self.hasRAW = hasRAW
     }
     
@@ -488,7 +490,13 @@ class UploadManager: ObservableObject {
                 longitude: asset.location?.coordinate.longitude
             )
         }.value
-        let resources = metadata.resources
+        // Immich links a Live Photo when its still is created with the clip's asset
+        // id (livePhotoVideoId), so the clip is uploaded first.
+        let isLiveVideoResource = { (resource: PHAssetResource) in
+            Self.getResourceType(for: resource) == LivePhotoResourcePolicy.resourceType
+        }
+        let resources = metadata.resources.filter(isLiveVideoResource)
+            + metadata.resources.filter { !isLiveVideoResource($0) }
         let totalResources = resources.count
 
         guard totalResources > 0 else {
@@ -521,8 +529,14 @@ class UploadManager: ObservableObject {
                     responseTracker.markFailed(error: UploadError.itemDeallocated)
                     return
                 }
+                var livePhotoVideoId: String?
                 for (index, resource) in resources.enumerated() {
                     let resourceType = Self.getResourceType(for: resource)
+                    let isLiveVideo = resourceType == LivePhotoResourcePolicy.resourceType
+                    // Only the still carries the link; companions stay standalone.
+                    let linkVideoId = ["raw", "video", LivePhotoResourcePolicy.resourceType]
+                        .contains(resourceType) ? nil : livePhotoVideoId
+                    let liveVideoResponse = isLiveVideo ? AsyncStream.makeStream(of: String?.self) : nil
                     let filename = PhotoLibraryManager.shared.getFilename(for: resource)
                     let mimeType = PhotoLibraryManager.shared.getMimeType(for: resource)
                     let deviceAssetId = "\(item.localIdentifier)-\(resourceType)-\(filename)"
@@ -552,6 +566,7 @@ class UploadManager: ObservableObject {
                             iCloudId: metadata.iCloudId,
                             latitude: metadata.latitude,
                             longitude: metadata.longitude,
+                            livePhotoVideoId: linkVideoId,
                             progressHandler: { progress in
                                 let baseProgress = Double(currentIndex) / Double(totalResources)
                                 let resourceProgress = progress / Double(totalResources)
@@ -578,15 +593,35 @@ class UploadManager: ObservableObject {
                                         isDuplicate: response.duplicate ?? false,
                                         isFavorite: metadata.isFavorite
                                     )
+                                    // Immich ignores livePhotoVideoId for a duplicate
+                                    // still; LivePhotoLinker links that pair later.
+                                    if let linkVideoId, !response.isDuplicate {
+                                        DatabaseManager.shared.recordLivePhotoLink(LivePhotoLinkCandidate(
+                                            assetId: localIdentifier,
+                                            stillImmichId: response.id,
+                                            videoImmichId: linkVideoId
+                                        ))
+                                    }
+                                    liveVideoResponse?.continuation.yield(response.id)
                                     responseTracker.markCompleted()
                                 case .failure(let error):
+                                    liveVideoResponse?.continuation.yield(nil)
                                     responseTracker.markFailed(error: error)
                                 }
+                                liveVideoResponse?.continuation.finish()
                             }
                         )
                     } catch {
                         responseTracker.markFailed(error: error)
                         break
+                    }
+
+                    if let liveVideoResponse {
+                        // A duplicate clip returns the existing asset's id, which
+                        // links just the same. Without an id the item already failed.
+                        var responses = liveVideoResponse.stream.makeAsyncIterator()
+                        guard let videoId = await responses.next() ?? nil else { break }
+                        livePhotoVideoId = videoId
                     }
 
                     await MainActor.run {
@@ -602,23 +637,7 @@ class UploadManager: ObservableObject {
     }
     
     nonisolated private static func getResourceType(for resource: PHAssetResource) -> String {
-        let uti = resource.uniformTypeIdentifier.lowercased()
-        if ["raw-image", "dng", "arw", "cr2", "cr3", "nef", "raf", "orf", "rw2"].contains(where: uti.contains) {
-            return "raw"
-        }
-        if resource.type == .alternatePhoto {
-            return "raw"
-        }
-        if uti.contains("video") || uti.contains("movie") || uti.contains("mp4") || uti.contains("quicktime")
-            || resource.type == .video || resource.type == .fullSizeVideo {
-            return "video"
-        }
-        if resource.type == .photo || resource.type == .fullSizePhoto {
-            if uti.contains("heic") || uti.contains("heif") { return "heic" }
-            if uti.contains("png") { return "png" }
-            return "jpeg"
-        }
-        return "primary"
+        UploadResourceKind.name(for: resource.type, uniformTypeIdentifier: resource.uniformTypeIdentifier)
     }
 
     func retryFailedItems() {
@@ -701,6 +720,43 @@ class UploadManager: ObservableObject {
             }
         } catch {
             return TimeZone.current
+        }
+    }
+}
+
+/// Links Live Photo stills to clips that were not linked in the upload request.
+///
+/// Foreground uploads send livePhotoVideoId with the still (Immich v2.0+ accepts it
+/// on POST /api/assets), which links atomically. Two cases need PUT /api/assets/{id}
+/// afterwards: background uploads, where PhotoKit schedules each resource as its own
+/// job and the still's request is built before the clip has an Immich id; and
+/// duplicate stills, for which Immich skips the link. PUT is idempotent, so this runs
+/// after every server sync; the shared database holds both ids for either path.
+enum LivePhotoLinker {
+    static func linkPending(serverURL: String, apiKey: String) async {
+        let pending = DatabaseManager.shared.pendingLivePhotoLinks()
+        guard !pending.isEmpty else { return }
+        logInfo("Linking \(pending.count) Live Photo(s)", category: .upload)
+
+        for link in pending {
+            do {
+                try await ImmichAPIService.shared.linkLivePhoto(
+                    stillId: link.stillImmichId,
+                    videoId: link.videoImmichId,
+                    serverURL: serverURL,
+                    apiKey: apiKey
+                )
+                DatabaseManager.shared.recordLivePhotoLink(link)
+            } catch ImmichAPIError.serverError(let statusCode, let message)
+                where statusCode == 400 || statusCode == 404 {
+                // The clip or still is gone or is not a video; retrying every sync
+                // cannot succeed until a re-upload produces new ids.
+                logWarning("Live Photo link rejected for \(link.assetId): HTTP \(statusCode) \(message)", category: .upload)
+                DatabaseManager.shared.recordLivePhotoLink(link)
+            } catch {
+                logWarning("Live Photo link failed for \(link.assetId): \(error.localizedDescription)", category: .upload)
+                return
+            }
         }
     }
 }

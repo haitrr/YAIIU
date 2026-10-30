@@ -11,7 +11,7 @@ final class SQLiteConnection {
     private var isInitialized = false
     private let initLock = NSLock()
     
-    private static let schemaVersion = 12
+    private static let schemaVersion = 13
     
     private init(databasePath: String? = nil) {
         dbQueue.async { [weak self] in
@@ -106,6 +106,7 @@ final class SQLiteConnection {
         createBackgroundUploadQueueTable()
         createBackgroundUploadStateTable()
         createLocalPhotoInventoryTables()
+        createLivePhotoLinksTable()
         createIndexes()
     }
     
@@ -160,7 +161,9 @@ final class SQLiteConnection {
             raw_on_server INTEGER DEFAULT 0,
             has_raw INTEGER DEFAULT 0,
             asset_modification_date REAL,
-            asset_resource_fingerprint TEXT
+            asset_resource_fingerprint TEXT,
+            has_live_video INTEGER DEFAULT 0,
+            live_video_on_server INTEGER DEFAULT 0
         );
         """
         executeStatement(sql)
@@ -262,6 +265,19 @@ final class SQLiteConnection {
             """)
     }
 
+    /// The still/clip id pair last linked on the server. A Live Photo re-uploaded
+    /// under new ids no longer matches its row and is linked again.
+    private func createLivePhotoLinksTable() {
+        executeStatement("""
+            CREATE TABLE IF NOT EXISTS live_photo_links (
+                asset_id TEXT PRIMARY KEY NOT NULL,
+                still_immich_id TEXT NOT NULL,
+                video_immich_id TEXT NOT NULL,
+                linked_at REAL NOT NULL
+            );
+            """)
+    }
+
     private func createIndexes() {
         executeStatement("CREATE INDEX IF NOT EXISTS idx_jobs_status ON upload_jobs(status)")
         executeStatement("CREATE INDEX IF NOT EXISTS idx_background_upload_queue_enqueued_at ON background_upload_queue(enqueued_at)")
@@ -319,6 +335,7 @@ final class SQLiteConnection {
             if currentVersion < 10 { migrateToV10() }
             if currentVersion < 11 { migrateToV11() }
             if currentVersion < 12 { createLocalPhotoInventoryTables() }
+            if currentVersion < 13 { migrateToV13() }
 
             guard hasSchemaColumnsForCurrentVersion() else {
                 logError("Database migration incomplete; retaining schema version \(currentVersion)", category: .database)
@@ -535,6 +552,19 @@ final class SQLiteConnection {
         executeStatement("ALTER TABLE uploaded_assets ADD COLUMN asset_resource_fingerprint TEXT;")
     }
 
+    /// Migration to version 13: track Live Photo clips like RAW companions, so a
+    /// confirmed still never hides a clip that still has to be uploaded.
+    private func migrateToV13() {
+        logInfo("Migrating database to version 13: adding Live Photo clip columns", category: .database)
+        let columns = tableColumns("hash_cache")
+        if !columns.contains("has_live_video") {
+            executeStatement("ALTER TABLE hash_cache ADD COLUMN has_live_video INTEGER DEFAULT 0;")
+        }
+        if !columns.contains("live_video_on_server") {
+            executeStatement("ALTER TABLE hash_cache ADD COLUMN live_video_on_server INTEGER DEFAULT 0;")
+        }
+    }
+
 
     private func hasSchemaColumnsForCurrentVersion() -> Bool {
         let syncMetadataColumns = tableColumns("sync_metadata")
@@ -547,7 +577,7 @@ final class SQLiteConnection {
         let inventoryStateColumns = tableColumns("local_photo_inventory_state")
         return ["last_ack", "server_url"].allSatisfy(syncMetadataColumns.contains)
             && serverAssetColumns.contains("source_checksum")
-            && hashCacheColumns.contains("asset_resource_fingerprint")
+            && ["asset_resource_fingerprint", "has_live_video", "live_video_on_server"].allSatisfy(hashCacheColumns.contains)
             && uploadedAssetColumns.contains("asset_resource_fingerprint")
             && ["asset_id", "is_hidden"].allSatisfy(inventoryColumns.contains)
             && ["id", "is_ready"].allSatisfy(inventoryStateColumns.contains)

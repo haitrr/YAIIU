@@ -21,6 +21,8 @@ final class FavoriteRepository {
                 SELECT asset_id, immich_id, is_favorite
                 FROM uploaded_assets
                 WHERE immich_id IS NOT NULL AND immich_id != ''
+                  -- The clip is uploaded first, but favorites belong on the still.
+                  AND resource_type != 'live_video'
                 GROUP BY asset_id;
             """
             var statement: OpaquePointer?
@@ -54,7 +56,7 @@ final class FavoriteRepository {
         connection.dbQueue.sync { [weak self] in
             guard let self = self else { return }
             
-            let sql = "SELECT immich_id FROM uploaded_assets WHERE asset_id = ? LIMIT 1;"
+            let sql = "SELECT immich_id FROM uploaded_assets WHERE asset_id = ? AND resource_type != 'live_video' LIMIT 1;"
             var statement: OpaquePointer?
             
             if sqlite3_prepare_v2(self.connection.db, sql, -1, &statement, nil) == SQLITE_OK {

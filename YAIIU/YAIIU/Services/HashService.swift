@@ -54,6 +54,8 @@ struct AssetResourcePlan: Sendable {
     let isRAWOnly: Bool
     let modificationDate: Date?
     let resourceFingerprint: String?
+    /// The asset has a Live Photo clip, tracked like a RAW companion.
+    let hasLiveVideo: Bool
     /// Sum of KVC size estimates for resources whose sizes are known.
     let estimatedBytes: Int64
     /// True when any selected resource has no usable PhotoKit size estimate.
@@ -107,6 +109,7 @@ enum AssetResourceSelector {
                 isRAWOnly: true,
                 modificationDate: asset.modificationDate,
                 resourceFingerprint: PhotoAssetSnapshot.resourceFingerprint(for: asset, resources: resources),
+                hasLiveVideo: resources.contains { LivePhotoResourcePolicy.isPairedVideo($0.type) },
                 estimatedBytes: estimate.bytes,
                 hasUnknownResourceSize: estimate.hasUnknown
             )
@@ -124,6 +127,7 @@ enum AssetResourceSelector {
             isRAWOnly: false,
             modificationDate: asset.modificationDate,
             resourceFingerprint: PhotoAssetSnapshot.resourceFingerprint(for: asset, resources: resources),
+            hasLiveVideo: resources.contains { LivePhotoResourcePolicy.isPairedVideo($0.type) },
             estimatedBytes: estimate.bytes,
             hasUnknownResourceSize: estimate.hasUnknown
         )

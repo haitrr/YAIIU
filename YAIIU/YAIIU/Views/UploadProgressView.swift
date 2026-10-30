@@ -163,6 +163,16 @@ struct UploadItemRow: View {
                             .background(item.resourcesUploaded["video"] == true ? Color.green : Color.purple)
                             .cornerRadius(3)
                     }
+
+                    if item.isLivePhoto {
+                        Image(systemName: "livephoto")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(item.resourcesUploaded[LivePhotoResourcePolicy.resourceType] == true ? Color.green : Color.purple)
+                            .cornerRadius(3)
+                    }
                 }
                 
                 // Upload status text

@@ -55,6 +55,14 @@ final class DatabaseManager {
     func getUploadedCount() -> Int {
         uploadRepo.getUploadedCount()
     }
+
+    func pendingLivePhotoLinks() -> [LivePhotoLinkCandidate] {
+        uploadRepo.pendingLivePhotoLinks()
+    }
+
+    func recordLivePhotoLink(_ link: LivePhotoLinkCandidate) {
+        uploadRepo.recordLivePhotoLink(link)
+    }
     
     func getUploadedCountAsync(completion: @escaping (Int) -> Void) {
         uploadRepo.getUploadedCountAsync(completion: completion)
@@ -91,6 +99,7 @@ final class DatabaseManager {
         primaryHash: String,
         rawHash: String?,
         hasRAW: Bool,
+        hasLiveVideo: Bool = false,
         modificationDate: Date? = nil,
         resourceFingerprint: String? = nil
     ) {
@@ -99,6 +108,7 @@ final class DatabaseManager {
             primaryHash: primaryHash,
             rawHash: rawHash,
             hasRAW: hasRAW,
+            hasLiveVideo: hasLiveVideo,
             modificationDate: modificationDate,
             resourceFingerprint: resourceFingerprint
         )

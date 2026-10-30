@@ -939,7 +939,7 @@ final class BackgroundUploadExtensionCore {
             }
 
             let allResources = PHAssetResource.assetResources(for: asset)
-            let resources = allResources.filter(self.shouldUpload)
+            let resources = self.uploadableResources(allResources)
             let resourceAvailabilityUnknown = allResources.isEmpty
             var assetHasOutstandingWork = false
 
@@ -952,9 +952,11 @@ final class BackgroundUploadExtensionCore {
                     continue
                 }
 
+                // A Live Photo clip has no checksum to confirm; its receipt decides.
                 let copyOnServer = type == "raw"
                     ? partial.rawConfirmed.contains(asset.localIdentifier)
-                    : partial.primaryConfirmed.contains(asset.localIdentifier)
+                    : type != LivePhotoResourcePolicy.resourceType
+                        && partial.primaryConfirmed.contains(asset.localIdentifier)
                 if copyOnServer {
                     continue
                 }
@@ -1037,8 +1039,8 @@ final class BackgroundUploadExtensionCore {
                 lastProgressLog = Date()
                 self.log("Discovery progress: scanned \(scanned), found \(pending.count) pending")
             }
-            let resources = PHAssetResource.assetResources(for: asset)
-            for r in resources where self.shouldUpload(r) {
+            let resources = self.uploadableResources(PHAssetResource.assetResources(for: asset))
+            for r in resources {
                 let type = self.resourceTypeString(for: r)
                 let key = "\(asset.localIdentifier)||\(type)"
                 if inflightKeys.contains(key) { continue }
@@ -1047,7 +1049,8 @@ final class BackgroundUploadExtensionCore {
                 // missing copy is (re)scheduled without reuploading the confirmed one.
                 let copyOnServer = type == "raw"
                     ? partial.rawConfirmed.contains(asset.localIdentifier)
-                    : partial.primaryConfirmed.contains(asset.localIdentifier)
+                    : type != LivePhotoResourcePolicy.resourceType
+                        && partial.primaryConfirmed.contains(asset.localIdentifier)
                 if copyOnServer { continue }
                 if !self.database.isResourceUploaded(
                     assetId: asset.localIdentifier,
@@ -1192,41 +1195,32 @@ final class BackgroundUploadExtensionCore {
 
     // MARK: - Resource Helpers
 
+    // A Live Photo's clip uploads as its own "live_video" job. Both jobs run
+    // independently, so the extension cannot send livePhotoVideoId with the still:
+    // its request is built before the clip has an Immich id. Both ids are recorded
+    // in uploaded_assets on acknowledgement, and the host app links the pair
+    // (LivePhotoLinker) after its next server sync.
     private func shouldUpload(_ resource: PHAssetResource) -> Bool {
         switch resource.type {
-        case .photo, .fullSizePhoto, .video, .fullSizeVideo, .alternatePhoto:
+        case .photo, .fullSizePhoto, .video, .fullSizeVideo, .alternatePhoto,
+             .pairedVideo, .fullSizePairedVideo:
             return true
         default:
             return false
         }
     }
 
+    /// Drops the original clip of an edited Live Photo; the edited
+    /// .fullSizePairedVideo is uploaded instead.
+    private func uploadableResources(_ resources: [PHAssetResource]) -> [PHAssetResource] {
+        let superseded = LivePhotoResourcePolicy.supersededPairedVideoIndices(in: resources.map(\.type))
+        return resources.enumerated()
+            .filter { shouldUpload($0.element) && !superseded.contains($0.offset) }
+            .map(\.element)
+    }
+
     private func resourceTypeString(for resource: PHAssetResource) -> String {
-        let uti = resource.uniformTypeIdentifier.lowercased()
-
-        let rawIndicators = [
-            "raw-image", "dng", "arw", "cr2", "cr3", "nef", "raf", "orf", "rw2",
-        ]
-        if rawIndicators.contains(where: uti.contains)
-            || resource.type == .alternatePhoto
-        {
-            return "raw"
-        }
-
-        if uti.contains("video") || uti.contains("movie") || uti.contains("mp4")
-            || uti.contains("quicktime") || resource.type == .video
-            || resource.type == .fullSizeVideo
-        {
-            return "video"
-        }
-
-        if resource.type == .photo || resource.type == .fullSizePhoto {
-            if uti.contains("heic") || uti.contains("heif") { return "heic" }
-            if uti.contains("png") { return "png" }
-            return "jpeg"
-        }
-
-        return "primary"
+        UploadResourceKind.name(for: resource.type, uniformTypeIdentifier: resource.uniformTypeIdentifier)
     }
 
 
@@ -1295,7 +1289,9 @@ final class BackgroundUploadExtensionCore {
         return nil
     }
 
-    private static let resourceTypeTokens = ["primary", "raw", "video", "heic", "png", "jpeg"]
+    private static let resourceTypeTokens = [
+        "primary", "raw", "video", "heic", "png", "jpeg", LivePhotoResourcePolicy.resourceType,
+    ]
 
     private static func parseDeviceAssetId(_ value: String) -> JobIdentity? {
         // Format: "<assetLocalIdentifier>-<resourceType>-<filename>". PhotoKit local

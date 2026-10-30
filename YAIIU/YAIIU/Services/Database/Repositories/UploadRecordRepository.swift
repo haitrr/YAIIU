@@ -1,6 +1,12 @@
 import Foundation
 import SQLite3
 
+struct LivePhotoLinkCandidate: Equatable {
+    let assetId: String
+    let stillImmichId: String
+    let videoImmichId: String
+}
+
 final class UploadRecordRepository {
     private let connection: SQLiteConnection
     // Swift C-string bridges are valid only during the bind call.
@@ -134,6 +140,20 @@ final class UploadRecordRepository {
         }
         
         sqlite3_finalize(statement)
+
+        // The background extension treats a confirmed still as complete only once
+        // its Live Photo clip is on the server as well.
+        if resourceType == LivePhotoResourcePolicy.resourceType {
+            let flagSql = "UPDATE hash_cache SET has_live_video = 1, live_video_on_server = 1 WHERE asset_id = ?;"
+            var flagStatement: OpaquePointer?
+            if sqlite3_prepare_v2(connection.db, flagSql, -1, &flagStatement, nil) == SQLITE_OK {
+                sqlite3_bind_text(flagStatement, 1, localIdentifier, -1, Self.transient)
+                if sqlite3_step(flagStatement) != SQLITE_DONE {
+                    logError("Failed to record Live Photo clip upload: \(connection.lastErrorMessage)", category: .database)
+                }
+            }
+            sqlite3_finalize(flagStatement)
+        }
     }
     
     // MARK: - Count Methods
@@ -331,12 +351,13 @@ final class UploadRecordRepository {
                     SELECT MAX(u2.id) FROM uploaded_assets u2
                     WHERE u2.asset_id = u.asset_id
                       AND (
-                          u2.resource_type NOT IN ('raw', 'video')
-                          OR NOT EXISTS (
+                          u2.resource_type NOT IN ('raw', 'video', 'live_video')
+                          -- A Live Photo clip is hidden behind its still; never add it.
+                          OR (u2.resource_type != 'live_video' AND NOT EXISTS (
                               SELECT 1 FROM uploaded_assets u3
                               WHERE u3.asset_id = u.asset_id
-                                AND u3.resource_type NOT IN ('raw', 'video')
-                          )
+                                AND u3.resource_type NOT IN ('raw', 'video', 'live_video')
+                          ))
                       )
                 ) AND s.owner_id = ?
                 UNION
@@ -431,12 +452,14 @@ final class UploadRecordRepository {
             JOIN hash_cache hc ON hc.asset_id = ua.asset_id
             JOIN server_assets_cache sac ON sac.source_checksum = hc.sha1_hash
             WHERE ua.immich_id = 'unknown'
+              -- hash_cache holds the still's checksum, never the Live Photo clip's.
+              AND ua.resource_type != 'live_video'
               AND NOT (
                   ua.resource_type IN ('raw', 'video')
                   AND EXISTS (
                       SELECT 1 FROM uploaded_assets ua2
                       WHERE ua2.asset_id = ua.asset_id
-                        AND ua2.resource_type NOT IN ('raw', 'video')
+                        AND ua2.resource_type NOT IN ('raw', 'video', 'live_video')
                   )
               )
             UNION
@@ -446,12 +469,13 @@ final class UploadRecordRepository {
             JOIN server_assets_cache sac ON sac.checksum = hc.sha1_hash
             WHERE sac.source_checksum IS NULL
               AND ua.immich_id = 'unknown'
+              AND ua.resource_type != 'live_video'
               AND NOT (
                   ua.resource_type IN ('raw', 'video')
                   AND EXISTS (
                       SELECT 1 FROM uploaded_assets ua2
                       WHERE ua2.asset_id = ua.asset_id
-                        AND ua2.resource_type NOT IN ('raw', 'video')
+                        AND ua2.resource_type NOT IN ('raw', 'video', 'live_video')
                   )
               );
             """
@@ -504,12 +528,13 @@ final class UploadRecordRepository {
                 let sql = """
                 UPDATE uploaded_assets SET immich_id = ?
                 WHERE asset_id = ? AND immich_id = 'unknown'
+                  AND resource_type != 'live_video'
                   AND NOT (
                       resource_type IN ('raw', 'video')
                       AND EXISTS (
                           SELECT 1 FROM uploaded_assets ua2
                           WHERE ua2.asset_id = uploaded_assets.asset_id
-                            AND ua2.resource_type NOT IN ('raw', 'video')
+                            AND ua2.resource_type NOT IN ('raw', 'video', 'live_video')
                       )
                   );
                 """
@@ -528,6 +553,78 @@ final class UploadRecordRepository {
                     }
                     sqlite3_reset(statement)
                 }
+            }
+        }
+    }
+
+    // MARK: - Live Photo Links
+
+    /// Uploaded still/clip pairs that are not yet linked on the server under their
+    /// current ids. Legacy "video" receipts are excluded: those clips were uploaded
+    /// before Live Photo support and rely on Immich's own matching.
+    func pendingLivePhotoLinks() -> [LivePhotoLinkCandidate] {
+        connection.ensureInitialized()
+        return connection.dbQueue.sync {
+            let sql = """
+            SELECT v.asset_id, s.immich_id, v.immich_id
+            FROM uploaded_assets v
+            JOIN uploaded_assets s ON s.id = (
+                SELECT MAX(s2.id) FROM uploaded_assets s2
+                WHERE s2.asset_id = v.asset_id
+                  AND s2.resource_type NOT IN ('raw', 'video', 'live_video')
+            )
+            LEFT JOIN live_photo_links l ON l.asset_id = v.asset_id
+            WHERE v.resource_type = 'live_video'
+              AND (l.asset_id IS NULL
+                   OR l.still_immich_id != s.immich_id
+                   OR l.video_immich_id != v.immich_id);
+            """
+            var statement: OpaquePointer?
+            defer { sqlite3_finalize(statement) }
+            guard sqlite3_prepare_v2(connection.db, sql, -1, &statement, nil) == SQLITE_OK else {
+                logError("Failed to prepare pending Live Photo link query: \(connection.lastErrorMessage)", category: .database)
+                return []
+            }
+            var links: [LivePhotoLinkCandidate] = []
+            while sqlite3_step(statement) == SQLITE_ROW {
+                guard let assetId = sqlite3_column_text(statement, 0),
+                      let stillId = sqlite3_column_text(statement, 1),
+                      let videoId = sqlite3_column_text(statement, 2) else { continue }
+                let link = LivePhotoLinkCandidate(
+                    assetId: String(cString: assetId),
+                    stillImmichId: String(cString: stillId),
+                    videoImmichId: String(cString: videoId)
+                )
+                // 'unknown' ids (no response header from an older proxy) cannot be linked.
+                guard UUID(uuidString: link.stillImmichId) != nil,
+                      UUID(uuidString: link.videoImmichId) != nil,
+                      link.stillImmichId != link.videoImmichId else { continue }
+                links.append(link)
+            }
+            return links
+        }
+    }
+
+    func recordLivePhotoLink(_ link: LivePhotoLinkCandidate) {
+        connection.ensureInitialized()
+        connection.dbQueue.sync {
+            let sql = """
+            INSERT OR REPLACE INTO live_photo_links
+                (asset_id, still_immich_id, video_immich_id, linked_at)
+            VALUES (?, ?, ?, ?);
+            """
+            var statement: OpaquePointer?
+            defer { sqlite3_finalize(statement) }
+            guard sqlite3_prepare_v2(connection.db, sql, -1, &statement, nil) == SQLITE_OK else {
+                logError("Failed to prepare Live Photo link insert: \(connection.lastErrorMessage)", category: .database)
+                return
+            }
+            sqlite3_bind_text(statement, 1, link.assetId, -1, Self.transient)
+            sqlite3_bind_text(statement, 2, link.stillImmichId, -1, Self.transient)
+            sqlite3_bind_text(statement, 3, link.videoImmichId, -1, Self.transient)
+            sqlite3_bind_double(statement, 4, Date().timeIntervalSince1970)
+            if sqlite3_step(statement) != SQLITE_DONE {
+                logError("Failed to record Live Photo link: \(connection.lastErrorMessage)", category: .database)
             }
         }
     }
