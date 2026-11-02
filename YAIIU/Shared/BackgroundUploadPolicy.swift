@@ -1,4 +1,5 @@
 import Foundation
+import Photos
 
 /// Network state used to decide whether the extension may create new upload jobs.
 public enum BackgroundUploadNetworkInterface: Equatable {
@@ -85,5 +86,57 @@ final class BackgroundUploadCreationRecovery {
 
     func recordSuccessfulCreation() {
         preferences?.removeObject(forKey: attemptedKey)
+    }
+}
+
+/// Resource type names stored in uploaded_assets/upload_jobs.resource_type and
+/// embedded in deviceAssetId ("<assetId>-<type>-<filename>").
+enum UploadResourceKind {
+    static func name(for type: PHAssetResourceType, uniformTypeIdentifier: String) -> String {
+        // A Live Photo clip's UTI is a QuickTime movie; classify it by resource
+        // type before the UTI checks so it is never stored as a plain "video".
+        if LivePhotoResourcePolicy.isPairedVideo(type) {
+            return LivePhotoResourcePolicy.resourceType
+        }
+        let uti = uniformTypeIdentifier.lowercased()
+        let rawIndicators = ["raw-image", "dng", "arw", "cr2", "cr3", "nef", "raf", "orf", "rw2"]
+        if rawIndicators.contains(where: uti.contains) || type == .alternatePhoto {
+            return "raw"
+        }
+        if uti.contains("video") || uti.contains("movie") || uti.contains("mp4") || uti.contains("quicktime")
+            || type == .video || type == .fullSizeVideo {
+            return "video"
+        }
+        if type == .photo || type == .fullSizePhoto {
+            if uti.contains("heic") || uti.contains("heif") { return "heic" }
+            if uti.contains("png") { return "png" }
+            return "jpeg"
+        }
+        return "primary"
+    }
+}
+
+/// A Live Photo's motion clip is a .pairedVideo resource; editing the photo adds a
+/// .fullSizePairedVideo holding the edited clip.
+enum LivePhotoResourcePolicy {
+    /// Underscored so "-live_video-" in a deviceAssetId never contains the "-video-"
+    /// separator. Like "raw", it is a companion: it never confirms the still.
+    static let resourceType = "live_video"
+    /// Builds before Live Photo support uploaded the clip in the foreground as "video".
+    static let legacyResourceType = "video"
+
+    static func isPairedVideo(_ type: PHAssetResourceType) -> Bool {
+        type == .pairedVideo || type == .fullSizePairedVideo
+    }
+
+    /// The clip to upload, preferring the edited version like .fullSizePhoto.
+    static func preferredPairedVideoIndex(in types: [PHAssetResourceType]) -> Int? {
+        types.firstIndex(of: .fullSizePairedVideo) ?? types.firstIndex(of: .pairedVideo)
+    }
+
+    /// Paired clips that must not be uploaded because an edited clip replaces them.
+    static func supersededPairedVideoIndices(in types: [PHAssetResourceType]) -> Set<Int> {
+        guard let preferred = preferredPairedVideoIndex(in: types) else { return [] }
+        return Set(types.indices.filter { isPairedVideo(types[$0]) && $0 != preferred })
     }
 }

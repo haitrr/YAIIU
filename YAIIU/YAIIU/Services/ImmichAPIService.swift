@@ -86,6 +86,7 @@ class ImmichAPIService: NSObject {
         iCloudId: String? = nil,
         latitude: Double? = nil,
         longitude: Double? = nil,
+        livePhotoVideoId: String? = nil,
         progressHandler: ((Double) -> Void)? = nil,
         onTransferStarted: (() -> Void)? = nil,
         responseHandler: ((Result<UploadResponse, Error>, Int64) -> Void)? = nil
@@ -166,7 +167,8 @@ class ImmichAPIService: NSObject {
             iCloudId: iCloudId,
             latitude: latitude,
             longitude: longitude,
-            sourceChecksum: sourceChecksum
+            sourceChecksum: sourceChecksum,
+            livePhotoVideoId: livePhotoVideoId
         )
         let epilogueData = "\r\n--\(boundary)--\r\n".data(using: .utf8)!
 
@@ -256,7 +258,7 @@ class ImmichAPIService: NSObject {
         return assetFileSize
     }
 
-    private static func buildMultipartPreamble(
+    static func buildMultipartPreamble(
         boundary: String,
         filename: String,
         mimeType: String,
@@ -268,7 +270,8 @@ class ImmichAPIService: NSObject {
         iCloudId: String?,
         latitude: Double?,
         longitude: Double?,
-        sourceChecksum: String?
+        sourceChecksum: String?,
+        livePhotoVideoId: String? = nil
     ) -> Data {
         var body = Data()
 
@@ -283,6 +286,9 @@ class ImmichAPIService: NSObject {
         appendField(name: "fileCreatedAt", value: dateFormatter.string(from: createdAt))
         appendField(name: "fileModifiedAt", value: dateFormatter.string(from: modifiedAt))
         appendField(name: "isFavorite", value: String(isFavorite))
+        if let livePhotoVideoId {
+            appendField(name: "livePhotoVideoId", value: livePhotoVideoId)
+        }
 
         if iCloudId != nil || sourceChecksum != nil {
             let metadata = MobileAppMetadata(
@@ -1070,6 +1076,31 @@ class ImmichAPIService: NSObject {
 
 
 
+    /// Links a Live Photo still to its motion clip. Immich hides the clip from the
+    /// timeline once linked; re-linking the same pair is harmless.
+    func linkLivePhoto(stillId: String, videoId: String, serverURL: String, apiKey: String) async throws {
+        guard let url = URL(string: "\(serverURL)/api/assets/\(stillId)") else {
+            throw ImmichAPIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["livePhotoVideoId": videoId])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ImmichAPIError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw ImmichAPIError.serverError(statusCode: httpResponse.statusCode, message: errorMessage)
+        }
+    }
+
     func updateBulkAssetMetadata(items: [MetadataUpdateItem], serverURL: String, apiKey: String) async throws {
         guard !items.isEmpty else {
             logDebug("No metadata items to update", category: .api)
@@ -1244,11 +1275,16 @@ struct LoginResponse: Codable {
 struct UploadResponse: Codable {
     let id: String
     let duplicate: Bool?
+    /// Immich v2 reports "created", "replaced" or "duplicate" instead of `duplicate`.
+    let status: String?
     
     enum CodingKeys: String, CodingKey {
         case id
         case duplicate
+        case status
     }
+
+    var isDuplicate: Bool { duplicate == true || status == "duplicate" }
 }
 
 struct UserInfo: Codable {

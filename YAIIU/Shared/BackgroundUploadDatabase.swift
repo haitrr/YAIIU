@@ -171,6 +171,7 @@ final class BackgroundUploadDatabase {
         """)
         exec("CREATE INDEX IF NOT EXISTS idx_background_upload_queue_enqueued_at ON background_upload_queue(enqueued_at)")
         ensureUploadedAssetFingerprintColumn()
+        ensureLiveVideoColumns()
 
         // Older extension builds created RAW jobs without updating has_raw. Repair
         // that durable resource-presence fact so a confirmed primary never hides a
@@ -221,6 +222,30 @@ final class BackgroundUploadDatabase {
 
         if !hasColumn {
             exec("ALTER TABLE uploaded_assets ADD COLUMN asset_resource_fingerprint TEXT;")
+        }
+    }
+
+    /// The extension can run before the host app migrates to schema version 13.
+    private func ensureLiveVideoColumns() {
+        var statement: OpaquePointer?
+        var columns = Set<String>()
+        if sqlite3_prepare_v2(db, "PRAGMA table_info(hash_cache);", -1, &statement, nil) == SQLITE_OK {
+            while sqlite3_step(statement) == SQLITE_ROW {
+                if let columnName = sqlite3_column_text(statement, 1) {
+                    columns.insert(String(cString: columnName))
+                }
+            }
+        }
+        sqlite3_finalize(statement)
+
+        // An empty result means hash_cache does not exist yet; the host app creates
+        // it with these columns.
+        guard !columns.isEmpty else { return }
+        if !columns.contains("has_live_video") {
+            exec("ALTER TABLE hash_cache ADD COLUMN has_live_video INTEGER DEFAULT 0;")
+        }
+        if !columns.contains("live_video_on_server") {
+            exec("ALTER TABLE hash_cache ADD COLUMN live_video_on_server INTEGER DEFAULT 0;")
         }
     }
 
@@ -279,9 +304,14 @@ final class BackgroundUploadDatabase {
     }
 
     func markResourcePresent(assetId: String, resourceType: String) {
-        guard resourceType == "raw" else { return }
+        let flagColumn: String
+        switch resourceType {
+        case "raw": flagColumn = "has_raw"
+        case LivePhotoResourcePolicy.resourceType: flagColumn = "has_live_video"
+        default: return
+        }
         queue.sync {
-            let sql = "UPDATE hash_cache SET has_raw = 1 WHERE asset_id = ?"
+            let sql = "UPDATE hash_cache SET \(flagColumn) = 1 WHERE asset_id = ?"
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
             guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
@@ -509,8 +539,14 @@ final class BackgroundUploadDatabase {
             
             sqlite3_step(stmt)
             
-            // Per-resource server flags: raw uploads confirm only the raw copy.
-            let flagColumn = resourceType == "raw" ? "raw_on_server" : "is_on_server"
+            // Per-resource server flags: raw uploads confirm only the raw copy and a
+            // Live Photo clip only itself, so a failed still job stays discoverable.
+            let flagColumn: String
+            switch resourceType {
+            case "raw": flagColumn = "raw_on_server"
+            case LivePhotoResourcePolicy.resourceType: flagColumn = "live_video_on_server"
+            default: flagColumn = "is_on_server"
+            }
             let updateSql = "UPDATE hash_cache SET \(flagColumn) = 1, checked_at = ? WHERE asset_id = ?"
             var updateStmt: OpaquePointer?
             defer { sqlite3_finalize(updateStmt) }
@@ -525,7 +561,15 @@ final class BackgroundUploadDatabase {
     
     func isResourceUploaded(assetId: String, resourceType: String) -> Bool {
         queue.sync {
-            let sql = "SELECT 1 FROM uploaded_assets WHERE asset_id = ? AND resource_type = ? LIMIT 1"
+            // Foreground builds before Live Photo support stored the paired clip as
+            // "video"; an image asset has no other video, so it covers "live_video".
+            let sql = """
+                SELECT 1 FROM uploaded_assets
+                WHERE asset_id = ? AND (resource_type = ? OR resource_type = ?)
+                LIMIT 1
+            """
+            let alternateType = resourceType == LivePhotoResourcePolicy.resourceType
+                ? LivePhotoResourcePolicy.legacyResourceType : resourceType
             
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
@@ -534,6 +578,7 @@ final class BackgroundUploadDatabase {
             
             sqlite3_bind_text(stmt, 1, assetId, -1, SQLITE_TRANSIENT)
             sqlite3_bind_text(stmt, 2, resourceType, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(stmt, 3, alternateType, -1, SQLITE_TRANSIENT)
             
             return sqlite3_step(stmt) == SQLITE_ROW
         }
@@ -1288,6 +1333,18 @@ final class BackgroundUploadDatabase {
     
     // MARK: - Assets On Server
 
+    // This app uploaded the still of a Live Photo whose clip is not on the server
+    // yet. A still that is only checksum-matched was uploaded elsewhere (e.g. the
+    // official app), which uploads the clip alongside it.
+    private static let owesLiveVideoSQL = """
+        has_live_video = 1 AND live_video_on_server = 0
+        AND EXISTS (
+            SELECT 1 FROM uploaded_assets u
+            WHERE u.asset_id = hash_cache.asset_id
+              AND u.resource_type NOT IN ('raw', 'video', 'live_video')
+        )
+        """
+
     // HashManager has already resolved local primary/RAW checksums against
     // server_assets_cache and persisted those results on hash_cache. The extension
     // consumes those flags; server_assets_cache itself has no local asset_id column.
@@ -1297,6 +1354,7 @@ final class BackgroundUploadDatabase {
             let sql = """
                 SELECT asset_id FROM hash_cache
                 WHERE is_on_server = 1 AND (has_raw = 0 OR raw_on_server = 1)
+                  AND NOT (\(Self.owesLiveVideoSQL))
             """
             var stmt: OpaquePointer?
             defer { sqlite3_finalize(stmt) }
@@ -1321,6 +1379,7 @@ final class BackgroundUploadDatabase {
                 SELECT asset_id, CASE WHEN is_on_server = 1 THEN 'p' ELSE 'r' END
                 FROM hash_cache
                 WHERE (is_on_server = 1 AND has_raw = 1 AND raw_on_server = 0)
+                   OR (is_on_server = 1 AND \(Self.owesLiveVideoSQL))
                    OR (raw_on_server = 1 AND is_on_server = 0)
             """
             var stmt: OpaquePointer?

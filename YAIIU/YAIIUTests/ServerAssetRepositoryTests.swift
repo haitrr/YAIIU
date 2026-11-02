@@ -2391,6 +2391,285 @@ final class ServerAssetRepositoryTests: XCTestCase {
         XCTAssertNil(hashRepository.getHashCache(localIdentifier: id))
     }
 
+    // MARK: - Live Photo motion clips
+
+    private let liveStillId = "a1111111-1111-4111-8111-111111111111"
+    private let liveClipId = "b2222222-2222-4222-8222-222222222222"
+
+    func testAlbumAssetIdsUseLivePhotoStillNotItsMotionClip() throws {
+        XCTAssertTrue(repository.saveServerAssets([
+            ServerAssetRecord(immichId: liveStillId, checksum: "still-sum", ownerId: "owner-1"),
+            ServerAssetRecord(immichId: liveClipId, checksum: "clip-sum", ownerId: "owner-1")
+        ]))
+        // The clip receipt is newer, so a MAX(id) pick would otherwise choose it.
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "heic", filename: "IMG_0001.HEIC", immichId: liveStillId)
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "live_video", filename: "IMG_0001.MOV", immichId: liveClipId)
+        uploadRepository.recordUploadedAsset(localIdentifier: "clip-only", resourceType: "live_video", filename: "IMG_0002.MOV", immichId: liveClipId)
+
+        let ids = try uploadRepository.albumAssetIds(for: ["live", "clip-only"], ownerId: "owner-1")
+
+        XCTAssertEqual(ids, [liveStillId])
+    }
+
+    func testFavoriteSyncTargetsLivePhotoStillNotItsMotionClip() {
+        // Foreground uploads record the clip before the still.
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "live_video", filename: "IMG_0001.MOV", immichId: liveClipId)
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "heic", filename: "IMG_0001.HEIC", immichId: liveStillId)
+        let favorites = FavoriteRepository(connection: connection)
+
+        XCTAssertEqual(favorites.getUploadedAssetsFavoriteStatus().map(\.immichId), [liveStillId])
+        XCTAssertEqual(favorites.getImmichId(for: "live"), liveStillId)
+    }
+
+    func testBackfillNeverAssignsStillIdToLivePhotoVideoReceipt() {
+        XCTAssertTrue(repository.saveServerAssets([
+            ServerAssetRecord(immichId: liveStillId, checksum: "still-sum", ownerId: "owner-1")
+        ]))
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "jpeg", filename: "IMG_0001.JPG", immichId: "unknown")
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "live_video", filename: "IMG_0001.MOV", immichId: "unknown")
+        uploadRepository.recordUploadedAsset(localIdentifier: "clip-only", resourceType: "live_video", filename: "IMG_0002.MOV", immichId: "unknown")
+        execute("""
+            INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at)
+            VALUES ('live', 'still-sum', 0), ('clip-only', 'still-sum', 0);
+            """)
+
+        let resolved = uploadRepository.getResolvedImmichIdsFromServerCache()
+        XCTAssertEqual(resolved, ["live": liveStillId])
+        uploadRepository.batchUpdateImmichIds(resolved)
+
+        XCTAssertEqual(sqlCount("SELECT COUNT(*) FROM uploaded_assets WHERE resource_type = 'jpeg' AND immich_id = '\(liveStillId)';"), 1)
+        XCTAssertEqual(sqlCount("SELECT COUNT(*) FROM uploaded_assets WHERE resource_type = 'live_video' AND immich_id = 'unknown';"), 2)
+    }
+
+    func testBatchMetadataCandidateIgnoresLivePhotoVideoReceipt() {
+        XCTAssertTrue(repository.saveServerAssets([
+            ServerAssetRecord(immichId: liveStillId, checksum: "still-hash", iCloudId: "still-cloud", ownerId: "owner-1"),
+            ServerAssetRecord(immichId: liveClipId, checksum: "clip-hash", iCloudId: "clip-cloud", ownerId: "owner-1")
+        ]))
+        execute("""
+            INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at)
+            VALUES ('live-jpeg', 'still-hash', 0), ('live-heic', 'still-hash', 0);
+            INSERT INTO uploaded_assets (asset_id, resource_type, filename, immich_id, uploaded_at)
+            VALUES ('live-jpeg', 'jpeg', 'IMG_0001.JPG', '\(liveStillId)', 100),
+                   ('live-jpeg', 'live_video', 'IMG_0001.MOV', '\(liveClipId)', 101),
+                   ('live-heic', 'heic', 'IMG_0002.HEIC', '\(liveStillId)', 100),
+                   ('live-heic', 'live_video', 'IMG_0002.MOV', '\(liveClipId)', 101);
+            """)
+
+        let candidates = hashRepository.verifyHashCacheBatch(
+            identifiers: ["live-jpeg", "live-heic"], ownerId: "owner-1"
+        )
+
+        XCTAssertEqual(candidates?.count, 2)
+        for candidate in candidates ?? [] {
+            XCTAssertEqual(candidate.immichId, liveStillId, candidate.assetId)
+            XCTAssertEqual(candidate.serverICloudId, "still-cloud", candidate.assetId)
+        }
+    }
+
+    func testLivePhotoVideoReceiptAloneDoesNotMarkPhotoUploaded() {
+        execute("""
+            INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at, checked_at, is_on_server)
+            VALUES ('clip-only', 'still-hash', 0, 10, 0), ('complete', 'other-hash', 0, 10, 0);
+            """)
+        let done = expectation(description: "status")
+        var statuses: [String: PhotoSyncStatus] = [:]
+        hashRepository.getAllSyncStatusAsync(
+            uploadedResourceTypes: ["clip-only": ["live_video"], "complete": ["heic", "live_video"]],
+            hasServerCache: false
+        ) {
+            statuses = $0
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+
+        XCTAssertEqual(statuses["clip-only"], .notUploaded)
+        XCTAssertEqual(statuses["complete"], .uploaded)
+    }
+
+    func testLocalPhotoCountTreatsLivePhotoVideoReceiptAloneAsNotUploaded() {
+        XCTAssertTrue(hashRepository.beginLocalPhotoInventoryBootstrap())
+        XCTAssertTrue(hashRepository.appendLocalPhotoInventoryBatch([
+            (identifier: "clip-only", isHidden: false),
+            (identifier: "complete", isHidden: false)
+        ]))
+        XCTAssertTrue(hashRepository.finishLocalPhotoInventoryBootstrap())
+        execute("""
+            INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at, checked_at, is_on_server)
+            VALUES ('clip-only', 'a', 0, 10, 0), ('complete', 'b', 0, 10, 0);
+            INSERT INTO uploaded_assets (asset_id, resource_type, filename, immich_id, uploaded_at)
+            VALUES ('clip-only', 'live_video', 'IMG_0001.MOV', 'clip', 1),
+                   ('complete', 'heic', 'IMG_0002.HEIC', 'still', 1),
+                   ('complete', 'live_video', 'IMG_0002.MOV', 'clip', 1);
+            """)
+
+        XCTAssertEqual(hashRepository.countNotUploadedVisibleAssets(), 1)
+    }
+
+    func testBackgroundLivePhotoVideoReceiptDoesNotConfirmStill() {
+        execute("INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at) VALUES ('live', 'still-hash', 0);")
+        let background = BackgroundUploadDatabase(testingDatabasePath: databaseURL.path)
+
+        background.recordUploadedAsset(
+            assetId: "live", resourceType: "live_video", filename: "IMG_0001.MOV",
+            immichId: liveClipId, fileSize: 0, isDuplicate: false
+        )
+
+        XCTAssertEqual(sqlCount("SELECT COUNT(*) FROM hash_cache WHERE asset_id = 'live' AND is_on_server = 0 AND raw_on_server = 0;"), 1)
+        XCTAssertFalse(background.getAllAssetsOnServer().contains("live"))
+        XCTAssertTrue(background.isResourceUploaded(assetId: "live", resourceType: "live_video"))
+    }
+
+    func testBackgroundKeepsLivePhotoPendingUntilItsClipIsOnServer() {
+        let background = BackgroundUploadDatabase(testingDatabasePath: databaseURL.path)
+        hashRepository.saveMultiResourceHashCache(
+            localIdentifier: "live", primaryHash: "still-hash", rawHash: nil,
+            hasRAW: false, hasLiveVideo: true
+        )
+        background.createOrUpdateJob(assetId: "live", resourceType: "live_video", filename: "IMG_0001.MOV", status: .uploading)
+        background.markResourcePresent(assetId: "live", resourceType: "live_video")
+
+        // The still succeeds; the clip job fails and its tracking row is deleted.
+        background.recordUploadedAsset(
+            assetId: "live", resourceType: "heic", filename: "IMG_0001.HEIC",
+            immichId: liveStillId, fileSize: 0, isDuplicate: false
+        )
+        background.deleteTrackedJob(assetId: "live", resourceType: "live_video")
+
+        XCTAssertFalse(background.getAllAssetsOnServer().contains("live"))
+        // The still is skipped while the clip is rediscovered.
+        XCTAssertTrue(background.getPartialServerCopyAssets().primaryConfirmed.contains("live"))
+
+        background.recordUploadedAsset(
+            assetId: "live", resourceType: "live_video", filename: "IMG_0001.MOV",
+            immichId: liveClipId, fileSize: 0, isDuplicate: false
+        )
+        XCTAssertTrue(background.getAllAssetsOnServer().contains("live"))
+        XCTAssertFalse(background.getPartialServerCopyAssets().primaryConfirmed.contains("live"))
+    }
+
+    func testMarkingLivePhotoClipPresentSetsFlagWithoutTouchingRAW() {
+        execute("INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at) VALUES ('live', 'h', 0);")
+        let background = BackgroundUploadDatabase(testingDatabasePath: databaseURL.path)
+
+        background.markResourcePresent(assetId: "live", resourceType: "live_video")
+
+        XCTAssertEqual(sqlCount("SELECT COUNT(*) FROM hash_cache WHERE asset_id = 'live' AND has_live_video = 1 AND has_raw = 0;"), 1)
+    }
+
+    func testLivePhotoClipIsNotOwedWithoutAStillUploadedByThisApp() {
+        // Uploaded elsewhere (for example by the official Immich app) and matched by
+        // checksum: the clip was uploaded alongside it, so never re-upload it. Legacy
+        // rows hashed before Live Photo support have has_live_video = 0.
+        execute("""
+            INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at, checked_at, is_on_server, has_live_video)
+            VALUES ('checksum-only', 'a', 0, 1, 1, 1), ('legacy-background', 'b', 0, 1, 1, 0);
+            INSERT INTO uploaded_assets (asset_id, resource_type, filename, immich_id, uploaded_at)
+            VALUES ('legacy-background', 'heic', 'IMG_0002.HEIC', 'still', 1);
+            """)
+        let background = BackgroundUploadDatabase(testingDatabasePath: databaseURL.path)
+
+        XCTAssertEqual(background.getAllAssetsOnServer(), Set(["checksum-only", "legacy-background"]))
+        XCTAssertTrue(background.getPartialServerCopyAssets().primaryConfirmed.isEmpty)
+    }
+
+    func testForegroundClipReceiptAndVerificationSetLiveVideoOnServer() {
+        hashRepository.saveMultiResourceHashCache(
+            localIdentifier: "foreground", primaryHash: "a", rawHash: nil, hasRAW: false, hasLiveVideo: true
+        )
+        hashRepository.saveMultiResourceHashCache(
+            localIdentifier: "legacy-foreground", primaryHash: "b", rawHash: nil, hasRAW: false, hasLiveVideo: true
+        )
+        hashRepository.saveMultiResourceHashCache(
+            localIdentifier: "clip-missing", primaryHash: "c", rawHash: nil, hasRAW: false, hasLiveVideo: true
+        )
+        uploadRepository.recordUploadedAsset(localIdentifier: "foreground", resourceType: "live_video", filename: "IMG_0001.MOV", immichId: liveClipId)
+        XCTAssertEqual(sqlCount("SELECT COUNT(*) FROM hash_cache WHERE asset_id = 'foreground' AND live_video_on_server = 1;"), 1)
+
+        execute("""
+            INSERT INTO uploaded_assets (asset_id, resource_type, filename, immich_id, uploaded_at)
+            VALUES ('legacy-foreground', 'heic', 'IMG_0002.HEIC', 'still', 1),
+                   ('legacy-foreground', 'video', 'IMG_0002.MOV', 'clip', 1),
+                   ('clip-missing', 'heic', 'IMG_0003.HEIC', 'still', 1);
+            """)
+        _ = hashRepository.verifyHashCacheBatch(
+            identifiers: ["foreground", "legacy-foreground", "clip-missing"], ownerId: nil
+        )
+
+        XCTAssertEqual(
+            Set(ids(for: "SELECT asset_id FROM hash_cache WHERE live_video_on_server = 1;")),
+            ["foreground", "legacy-foreground"]
+        )
+    }
+
+    func testBackgroundDatabaseAddsLiveVideoColumnsToAnOlderHashCache() throws {
+        let olderURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("yaiiu-old-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: olderURL) }
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(olderURL.path, &db), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(db, """
+            CREATE TABLE hash_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, asset_id TEXT NOT NULL UNIQUE,
+                sha1_hash TEXT NOT NULL, is_on_server INTEGER DEFAULT 0, calculated_at REAL NOT NULL,
+                checked_at REAL, raw_hash TEXT, raw_on_server INTEGER DEFAULT 0, has_raw INTEGER DEFAULT 0
+            );
+            CREATE TABLE uploaded_assets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, asset_id TEXT NOT NULL, resource_type TEXT NOT NULL,
+                filename TEXT NOT NULL, immich_id TEXT NOT NULL, file_size INTEGER,
+                is_duplicate INTEGER DEFAULT 0, uploaded_at REAL NOT NULL, UNIQUE(asset_id, resource_type)
+            );
+            CREATE TABLE upload_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, asset_id TEXT NOT NULL, resource_type TEXT NOT NULL,
+                filename TEXT NOT NULL, status TEXT DEFAULT 'pending', immich_id TEXT, error_message TEXT,
+                retry_count INTEGER DEFAULT 0, created_at REAL NOT NULL, updated_at REAL NOT NULL,
+                UNIQUE(asset_id, resource_type)
+            );
+            INSERT INTO hash_cache (asset_id, sha1_hash, is_on_server, calculated_at) VALUES ('old', 'h', 1, 0);
+            """, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(db)
+
+        let background = BackgroundUploadDatabase(testingDatabasePath: olderURL.path)
+
+        XCTAssertEqual(background.getAllAssetsOnServer(), Set(["old"]))
+    }
+
+    func testLegacyForegroundVideoReceiptCoversLivePhotoVideo() {
+        // Before Live Photo support the foreground recorded the paired clip as "video".
+        uploadRepository.recordUploadedAsset(localIdentifier: "legacy-live", resourceType: "heic", filename: "IMG_0001.HEIC", immichId: liveStillId)
+        uploadRepository.recordUploadedAsset(localIdentifier: "legacy-live", resourceType: "video", filename: "IMG_0001.MOV", immichId: liveClipId)
+        let background = BackgroundUploadDatabase(testingDatabasePath: databaseURL.path)
+
+        XCTAssertTrue(background.isResourceUploaded(assetId: "legacy-live", resourceType: "live_video"))
+        XCTAssertFalse(background.isResourceUploaded(assetId: "legacy-live", resourceType: "raw"))
+        XCTAssertFalse(background.isResourceUploaded(assetId: "other", resourceType: "live_video"))
+        // Legacy pairs were linked by Immich's own matching; never re-link them.
+        XCTAssertTrue(uploadRepository.pendingLivePhotoLinks().isEmpty)
+    }
+
+    func testPendingLivePhotoLinksPairStillAndClipUntilRecorded() {
+        let newStillId = "c3333333-3333-4333-8333-333333333333"
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "raw", filename: "IMG_0001.DNG", immichId: "d4444444-4444-4444-8444-444444444444")
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "heic", filename: "IMG_0001.HEIC", immichId: liveStillId)
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "live_video", filename: "IMG_0001.MOV", immichId: liveClipId)
+        uploadRepository.recordUploadedAsset(localIdentifier: "clip-only", resourceType: "live_video", filename: "IMG_0002.MOV", immichId: liveClipId)
+        uploadRepository.recordUploadedAsset(localIdentifier: "unresolved", resourceType: "jpeg", filename: "IMG_0003.JPG", immichId: "unknown")
+        uploadRepository.recordUploadedAsset(localIdentifier: "unresolved", resourceType: "live_video", filename: "IMG_0003.MOV", immichId: liveClipId)
+
+        let expected = LivePhotoLinkCandidate(assetId: "live", stillImmichId: liveStillId, videoImmichId: liveClipId)
+        XCTAssertEqual(uploadRepository.pendingLivePhotoLinks(), [expected])
+
+        uploadRepository.recordLivePhotoLink(expected)
+        XCTAssertTrue(uploadRepository.pendingLivePhotoLinks().isEmpty)
+
+        // An edited Live Photo is re-uploaded under new ids and needs a new link.
+        uploadRepository.recordUploadedAsset(localIdentifier: "live", resourceType: "heic", filename: "IMG_0001.HEIC", immichId: newStillId)
+        XCTAssertEqual(
+            uploadRepository.pendingLivePhotoLinks(),
+            [LivePhotoLinkCandidate(assetId: "live", stillImmichId: newStillId, videoImmichId: liveClipId)]
+        )
+    }
+
     private func sqlCount(_ sql: String) -> Int {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(connection.db, sql, -1, &statement, nil) == SQLITE_OK else {

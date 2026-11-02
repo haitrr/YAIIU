@@ -954,6 +954,7 @@ class HashManager: ObservableObject {
                 primaryHash: result.primaryHash,
                 rawHash: result.rawHash,
                 hasRAW: result.hasRAW,
+                hasLiveVideo: files.plan.hasLiveVideo,
                 modificationDate: files.plan.modificationDate,
                 resourceFingerprint: files.plan.resourceFingerprint
             )

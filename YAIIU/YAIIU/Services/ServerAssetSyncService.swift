@@ -168,6 +168,7 @@ class ServerAssetSyncService {
                 if result.upsertedCount > 0 || result.backfilledCount > 0 {
                     Task { await AlbumSyncService.shared.syncIfEnabled() }
                 }
+                Task { await LivePhotoLinker.linkPending(serverURL: serverURL, apiKey: apiKey) }
             } catch {
                 logError("Sync failed: \(error.localizedDescription)", category: .sync)
                 await MainActor.run { completion(.failure(error)) }

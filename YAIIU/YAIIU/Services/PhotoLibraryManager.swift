@@ -1391,14 +1391,27 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     
     func getUploadableResources(for asset: PHAsset) -> [PHAssetResource] {
         let resources = getAssetResources(for: asset)
-        
-        var jpegResource: PHAssetResource?
-        var rawResource: PHAssetResource?
-        var videoResource: PHAssetResource?
-        
-        for resource in resources {
+        let indices = Self.uploadableResourceIndices(
+            resources.map { (type: $0.type, uniformTypeIdentifier: $0.uniformTypeIdentifier) }
+        )
+        return indices.map { resources[$0] }
+    }
+
+    /// Indices of the resources to upload, ordered still, RAW, video, Live Photo clip.
+    static func uploadableResourceIndices(
+        _ resources: [(type: PHAssetResourceType, uniformTypeIdentifier: String)]
+    ) -> [Int] {
+        var jpegIndex: Int?
+        var rawIndex: Int?
+        var videoIndex: Int?
+        let pairedVideoIndex = LivePhotoResourcePolicy.preferredPairedVideoIndex(in: resources.map(\.type))
+
+        for (index, resource) in resources.enumerated() {
+            // The pre-edit clip (.adjustmentBasePairedVideo) is never uploaded.
+            if LivePhotoResourcePolicy.isPairedVideo(resource.type)
+                || resource.type == .adjustmentBasePairedVideo { continue }
             let uti = resource.uniformTypeIdentifier.lowercased()
-            
+
             let isRAW = uti.contains("raw-image") ||
                         uti.contains("dng") ||
                         uti.contains("arw") ||
@@ -1409,48 +1422,34 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
                         uti.contains("orf") ||
                         uti.contains("rw2") ||
                         resource.type == .alternatePhoto
-            
+
             let isVideo = resource.type == .video ||
                           resource.type == .fullSizeVideo ||
                           uti.contains("video") ||
                           uti.contains("movie")
-            
+
             let isMainPhoto = (resource.type == .photo || resource.type == .fullSizePhoto) && !isRAW
-            
+
             if isRAW {
-                if rawResource == nil || resource.type == .fullSizePhoto {
-                    rawResource = resource
+                if rawIndex == nil || resource.type == .fullSizePhoto {
+                    rawIndex = index
                 }
             } else if isVideo {
-                if videoResource == nil || resource.type == .fullSizeVideo {
-                    videoResource = resource
+                if videoIndex == nil || resource.type == .fullSizeVideo {
+                    videoIndex = index
                 }
             } else if isMainPhoto {
-                if jpegResource == nil || resource.type == .fullSizePhoto {
-                    jpegResource = resource
+                if jpegIndex == nil || resource.type == .fullSizePhoto {
+                    jpegIndex = index
                 }
             }
         }
-        
-        var uploadableResources: [PHAssetResource] = []
-        
-        if let jpeg = jpegResource {
-            uploadableResources.append(jpeg)
+
+        let selected = [jpegIndex, rawIndex, videoIndex, pairedVideoIndex].compactMap { $0 }
+        if selected.isEmpty, !resources.isEmpty {
+            return [0]
         }
-        
-        if let raw = rawResource {
-            uploadableResources.append(raw)
-        }
-        
-        if let video = videoResource {
-            uploadableResources.append(video)
-        }
-        
-        if uploadableResources.isEmpty, let firstResource = resources.first {
-            uploadableResources.append(firstResource)
-        }
-        
-        return uploadableResources
+        return selected
     }
     
     func isRAWResource(_ resource: PHAssetResource) -> Bool {

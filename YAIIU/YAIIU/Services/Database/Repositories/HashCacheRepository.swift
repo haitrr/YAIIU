@@ -38,6 +38,7 @@ final class HashCacheRepository {
         primaryHash: String,
         rawHash: String?,
         hasRAW: Bool,
+        hasLiveVideo: Bool = false,
         modificationDate: Date? = nil,
         resourceFingerprint: String? = nil
     ) {
@@ -48,6 +49,7 @@ final class HashCacheRepository {
                 sha1Hash: primaryHash,
                 rawHash: rawHash,
                 hasRAW: hasRAW,
+                hasLiveVideo: hasLiveVideo,
                 modificationDate: modificationDate,
                 resourceFingerprint: resourceFingerprint
             )
@@ -59,13 +61,14 @@ final class HashCacheRepository {
         sha1Hash: String,
         rawHash: String?,
         hasRAW: Bool,
+        hasLiveVideo: Bool = false,
         modificationDate: Date?,
         resourceFingerprint: String?
     ) {
         let sql = """
         INSERT OR REPLACE INTO hash_cache
-        (asset_id, sha1_hash, is_on_server, calculated_at, raw_hash, raw_on_server, has_raw, asset_modification_date, asset_resource_fingerprint)
-        VALUES (?, ?, 0, ?, ?, 0, ?, ?, ?);
+        (asset_id, sha1_hash, is_on_server, calculated_at, raw_hash, raw_on_server, has_raw, asset_modification_date, asset_resource_fingerprint, has_live_video, live_video_on_server)
+        VALUES (?, ?, 0, ?, ?, 0, ?, ?, ?, ?, 0);
         """
 
         var statement: OpaquePointer?
@@ -94,6 +97,7 @@ final class HashCacheRepository {
             } else {
                 sqlite3_bind_null(statement, 7)
             }
+            sqlite3_bind_int(statement, 8, hasLiveVideo ? 1 : 0)
 
             let hashSaved = sqlite3_step(statement) == SQLITE_DONE
             if !hashSaved {
@@ -760,6 +764,10 @@ final class HashCacheRepository {
                     OR EXISTS (SELECT 1 FROM server_assets_cache s
                                WHERE s.checksum = h.sha1_hash AND s.source_checksum IS NULL)
                     THEN 1 ELSE 0 END,
+                  live_video_on_server = CASE WHEN h.has_live_video = 1 AND EXISTS (
+                    SELECT 1 FROM uploaded_assets u WHERE u.asset_id = h.asset_id
+                      AND u.resource_type IN ('live_video', 'video')
+                    ) THEN 1 ELSE 0 END,
                   raw_on_server = CASE WHEN h.has_raw = 1 AND (
                     EXISTS (SELECT 1 FROM uploaded_assets u
                             WHERE u.asset_id = h.asset_id AND u.resource_type = 'raw')
@@ -845,8 +853,9 @@ final class HashCacheRepository {
                     WHERE h.asset_id IN (\(placeholders))
                       AND h.is_on_server = 1 AND s.owner_id = ?
                     -- collect() keeps the last match per asset. Companion RAW
-                    -- and Live Photo video receipts must come before the main
-                    -- image receipt, so the primary image wins deterministically.
+                    -- and legacy Live Photo "video" receipts must come before the
+                    -- main image receipt, so the primary image wins deterministically.
+                    -- 'live_video' is never the primary copy, so it is not matched.
                     ORDER BY CASE WHEN u.resource_type IN ('raw', 'video') THEN 0 ELSE 1 END,
                              u.id ASC;
                     """
@@ -930,7 +939,10 @@ final class HashCacheRepository {
                         let hasRAW = sqlite3_column_int(statement, 5) == 1
                         let rawOnServer = sqlite3_column_int(statement, 4) == 1
                         
-                        let uploadedTypes = uploadedResourceTypes[identifier] ?? []
+                        // A Live Photo clip is a companion like RAW, but it never
+                        // stands in for the still.
+                        let uploadedTypes = (uploadedResourceTypes[identifier] ?? [])
+                            .subtracting([LivePhotoResourcePolicy.resourceType])
                         let hasUploadedNonRAW = !uploadedTypes.isEmpty && uploadedTypes.contains(where: { $0 != "raw" })
                         let hasUploadedRAW = uploadedTypes.contains("raw")
                         
@@ -1437,7 +1449,7 @@ final class HashCacheRepository {
                     OR (COALESCE(h.has_raw, 0) = 1 AND (
                         (COALESCE(h.is_on_server, 0) != 1 AND NOT EXISTS (
                             SELECT 1 FROM uploaded_assets u
-                            WHERE u.asset_id = a.asset_id AND u.resource_type != 'raw'
+                            WHERE u.asset_id = a.asset_id AND u.resource_type NOT IN ('raw', 'live_video')
                         ))
                         OR (COALESCE(h.raw_on_server, 0) != 1 AND NOT EXISTS (
                             SELECT 1 FROM uploaded_assets u
@@ -1445,7 +1457,8 @@ final class HashCacheRepository {
                         ))
                     ))
                     OR (COALESCE(h.has_raw, 0) != 1 AND COALESCE(h.is_on_server, 0) != 1 AND NOT EXISTS (
-                        SELECT 1 FROM uploaded_assets u WHERE u.asset_id = a.asset_id
+                        SELECT 1 FROM uploaded_assets u
+                        WHERE u.asset_id = a.asset_id AND u.resource_type != 'live_video'
                     ))
                 );
                 """
