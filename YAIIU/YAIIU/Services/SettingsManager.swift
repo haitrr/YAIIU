@@ -258,7 +258,7 @@ protocol CredentialStorage {
 }
 
 struct SystemKeychainCredentialStore: CredentialStorage {
-    private let service = "com.fawenyo.yaiiu"
+    private let service = "com.haitrr.yaiiu"
     private let account = "api_key"
 
     private var query: [String: Any] {

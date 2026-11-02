@@ -811,7 +811,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     /// Serialized because launch, foregrounding, and initial asset loading may
     /// all request a scan at nearly the same time.
     private static let foregroundChangeQueue =
-        DispatchQueue(label: "com.fawenyo.yaiiu.foreground-photo-changes")
+        DispatchQueue(label: "com.haitrr.yaiiu.foreground-photo-changes")
 
     /// Serialized with foreground PhotoKit reconciliation so an import or
     /// startup baseline cannot race a second baseline pass.

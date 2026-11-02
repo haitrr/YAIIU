@@ -17,7 +17,7 @@ final class RAWFormatChecker {
     /// thousands of uncached assets. Cancelled operations skip the lookup.
     private let inspectionQueue: OperationQueue = {
         let queue = OperationQueue()
-        queue.name = "com.fawenyo.yaiiu.raw-resource-inspection"
+        queue.name = "com.haitrr.yaiiu.raw-resource-inspection"
         queue.qualityOfService = .utility
         queue.maxConcurrentOperationCount = 2
         return queue

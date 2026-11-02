@@ -414,7 +414,7 @@ class HashManager: ObservableObject {
     private var isCheckingActive = false
     private var isStopping = false
     
-    private let checkQueue = DispatchQueue(label: "com.fawenyo.yaiiu.check", qos: .utility)
+    private let checkQueue = DispatchQueue(label: "com.haitrr.yaiiu.check", qos: .utility)
     
     /// Number of concurrent server checks
     private let checkConcurrency = 5

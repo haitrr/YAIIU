@@ -152,7 +152,7 @@ public final class LogFileWriter: @unchecked Sendable {
     private let fileURL: URL
     private let queue: DispatchQueue
     
-    public init(fileURL: URL, queueLabel: String = "com.fawenyo.yaiiu.logwriter") {
+    public init(fileURL: URL, queueLabel: String = "com.haitrr.yaiiu.logwriter") {
         self.fileURL = fileURL
         self.queue = DispatchQueue(label: queueLabel, qos: .utility)
     }

@@ -89,7 +89,7 @@ final class AuthenticationPersistenceTests: XCTestCase {
     }
 
     private func makeDefaults(loggedIn: Bool, serverURL: String) -> UserDefaults {
-        let suite = "com.fawenyo.yaiiu.auth-tests.\(UUID().uuidString)"
+        let suite = "com.haitrr.yaiiu.auth-tests.\(UUID().uuidString)"
         testSuiteNames.append(suite)
         guard let defaults = UserDefaults(suiteName: suite) else {
             fatalError("Could not create isolated UserDefaults")

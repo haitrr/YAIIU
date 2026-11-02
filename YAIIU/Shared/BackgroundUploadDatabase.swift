@@ -88,7 +88,7 @@ final class BackgroundUploadDatabase {
     static let shared = BackgroundUploadDatabase()
     
     private var db: OpaquePointer?
-    private let queue = DispatchQueue(label: "com.fawenyo.yaiiu.bgdb", qos: .utility)
+    private let queue = DispatchQueue(label: "com.haitrr.yaiiu.bgdb", qos: .utility)
     
     private init() {
         openDatabase()
@@ -110,7 +110,7 @@ final class BackgroundUploadDatabase {
     
     private func openDatabase() {
         guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.fawenyo.yaiiu"
+            forSecurityApplicationGroupIdentifier: "group.com.haitrr.yaiiu"
         ) else {
             print("[BackgroundUploadDatabase] Failed to get app group container")
             return
@@ -632,7 +632,7 @@ final class BackgroundUploadDatabase {
         let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "database unavailable"
         let code = db.map { Int(sqlite3_errcode($0)) } ?? -1
         return NSError(
-            domain: "com.fawenyo.yaiiu.background-upload.database",
+            domain: "com.haitrr.yaiiu.background-upload.database",
             code: code,
             userInfo: [NSLocalizedDescriptionKey: "\(operation): \(message)"]
         )
