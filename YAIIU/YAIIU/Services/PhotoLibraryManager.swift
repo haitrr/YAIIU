@@ -1044,6 +1044,11 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
                     let identifiers = Array(window.affectedIdentifiers)
                     var snapshots: [PhotoAssetSnapshot] = []
                     snapshots.reserveCapacity(identifiers.count)
+                    // PhotoKit change details name only a burst's representative,
+                    // so expand each changed burst to all of its frames.
+                    var seenIdentifiers = Set(identifiers)
+                    var burstIdentifiers = Set<String>()
+                    var burstMemberIdentifiers = Set<String>()
                     // A single persistent-change batch can contain thousands of
                     // IDs even when the logical journal window is capped at 512.
                     // Bound native PHFetchResult allocations without splitting
@@ -1063,16 +1068,35 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
                                     includeResourceFingerprint: true,
                                     includeResourceDiagnostics: snapshots.count < 10
                                 ))
+                                if let burstID = asset.burstIdentifier {
+                                    burstIdentifiers.insert(burstID)
+                                }
+                            }
+                        }
+                    }
+                    for burstID in burstIdentifiers {
+                        autoreleasepool {
+                            let members = PHAsset.fetchAssets(
+                                withBurstIdentifier: burstID, options: options
+                            )
+                            PhotoLibraryEnumeration.forEach(in: members) { asset, _ in
+                                guard seenIdentifiers.insert(asset.localIdentifier).inserted else { return }
+                                burstMemberIdentifiers.insert(asset.localIdentifier)
+                                snapshots.append(PhotoAssetSnapshot(
+                                    asset: asset,
+                                    includeResourceFingerprint: true,
+                                    includeResourceDiagnostics: false
+                                ))
                             }
                         }
                     }
                     let photoKitElapsed = Date().timeIntervalSince(startedAt)
                     totalPhotoKitElapsed += photoKitElapsed
                     fetchedSnapshotCount += snapshots.count
-                    unresolvedLookups += max(0, identifiers.count - snapshots.count)
+                    unresolvedLookups += max(0, identifiers.count + burstMemberIdentifiers.count - snapshots.count)
                     guard db.applyForegroundPhotoChanges(
                         snapshots: snapshots,
-                        pendingIdentifiers: window.affectedIdentifiers,
+                        pendingIdentifiers: window.affectedIdentifiers.union(burstMemberIdentifiers),
                         deletedIdentifiers: window.deletedIdentifiers,
                         tokenData: tokenData,
                         bootstrap: false
