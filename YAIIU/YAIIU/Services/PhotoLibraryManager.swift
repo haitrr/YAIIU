@@ -548,8 +548,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     }
 
     private static func indices(in orderedIdentifiers: [String], collection: PHAssetCollection) -> [Int] {
-        let options = PHFetchOptions()
-        options.includeHiddenAssets = false
+        let options = PHFetchOptions.library(includeHidden: false)
         let assets = PHAsset.fetchAssets(in: collection, options: options)
         var members = Set<String>(minimumCapacity: assets.count)
         PhotoLibraryEnumeration.forEach(in: assets, shouldStop: { Task.isCancelled }) { asset, _ in
@@ -663,9 +662,8 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         // immediately via lazy `asset(at:)` access. Enumerating every identifier for a
         // large library takes several seconds and must not block the first paint.
         let result = await Task.detached(priority: .userInitiated) {
-            let fetchOptions = PHFetchOptions()
+            let fetchOptions = PHFetchOptions.library(includeHidden: false)
             fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-            fetchOptions.includeHiddenAssets = false
             return PHAsset.fetchAssets(with: fetchOptions)
         }.value
 
@@ -784,8 +782,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     func allAssetSnapshots(includingHidden: Bool = false) -> [PhotoAssetSnapshot] {
         let result: PHFetchResult<PHAsset>
         if includingHidden {
-            let options = PHFetchOptions()
-            options.includeHiddenAssets = true
+            let options = PHFetchOptions.library(includeHidden: true)
             options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
             result = PHAsset.fetchAssets(with: options)
         } else {
@@ -860,8 +857,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
             }
         }
 
-        let options = PHFetchOptions()
-        options.includeHiddenAssets = true
+        let options = PHFetchOptions.library(includeHidden: true)
         var matched = 0
         var filled = 0
         var invalidated = 0
@@ -993,6 +989,13 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
                 }
             }
 
+            // Burst frames were invisible to older builds and PhotoKit history
+            // will never report them, so enqueue them once against the
+            // existing cursor; the replay below still covers newer changes.
+            guard backfillBurstFramesIfNeeded(tokenData: tokenData) else {
+                return .unavailable
+            }
+
             do {
                 let fetchStartedAt = Date()
                 let changes = try PHPhotoLibrary.shared().fetchPersistentChanges(since: token)
@@ -1037,8 +1040,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
                     }
                     totalTokenArchiveElapsed += Date().timeIntervalSince(tokenStartedAt)
                     let startedAt = Date()
-                    let options = PHFetchOptions()
-                    options.includeHiddenAssets = true
+                    let options = PHFetchOptions.library(includeHidden: true)
                     let identifiers = Array(window.affectedIdentifiers)
                     var snapshots: [PhotoAssetSnapshot] = []
                     snapshots.reserveCapacity(identifiers.count)
@@ -1211,8 +1213,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
             return []
         }
 
-        let options = PHFetchOptions()
-        options.includeHiddenAssets = true
+        let options = PHFetchOptions.library(includeHidden: true)
         var output = knownVisible
         var fetchedVisible = 0
         var missingFromPhotoKit = 0
@@ -1278,8 +1279,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     /// windows. Never enumerate full PHAssetSnapshot contents or advance the
     /// existing foreground change token here.
     private func bootstrapLocalPhotoInventory() -> Bool {
-        let options = PHFetchOptions()
-        options.includeHiddenAssets = true
+        let options = PHFetchOptions.library(includeHidden: true)
         let assets = PHAsset.fetchAssets(with: options)
         let db = DatabaseManager.shared
         guard db.beginLocalPhotoInventoryBootstrap() else { return false }
@@ -1308,6 +1308,53 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         // The caller must first replay the old token (including events that
         // arrived during this enumeration) before committing readiness.
         logInfo("Local PhotoKit inventory baseline staged: assets=\(assets.count)", category: .hash)
+        return true
+    }
+
+    private static let burstFramesBackfilledKey = "photoKitBurstFramesBackfilled"
+
+    /// Builds that fetched without `includeAllBurstAssets` only ever saw the
+    /// cover photo of each burst stack. Add the other frames to the inventory
+    /// and hash queue once, without advancing the PhotoKit cursor.
+    private func backfillBurstFramesIfNeeded(tokenData: Data) -> Bool {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: Self.burstFramesBackfilledKey) else { return true }
+
+        var burstIdentifiers: [String] = []
+        let all = PHAsset.fetchAssets(with: .library(includeHidden: true))
+        PhotoLibraryEnumeration.forEach(in: all) { asset, _ in
+            if asset.burstIdentifier != nil {
+                burstIdentifiers.append(asset.localIdentifier)
+            }
+        }
+
+        let options = PHFetchOptions.library(includeHidden: true)
+        for start in stride(from: 0, to: burstIdentifiers.count, by: 300) {
+            let identifiers = Array(burstIdentifiers[start..<min(start + 300, burstIdentifiers.count)])
+            var snapshots: [PhotoAssetSnapshot] = []
+            autoreleasepool {
+                let fetched = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: options)
+                PhotoLibraryEnumeration.forEach(in: fetched) { asset, _ in
+                    snapshots.append(PhotoAssetSnapshot(
+                        asset: asset,
+                        includeResourceFingerprint: true,
+                        includeResourceDiagnostics: false
+                    ))
+                }
+            }
+            guard DatabaseManager.shared.applyForegroundPhotoChanges(
+                snapshots: snapshots,
+                pendingIdentifiers: Set(snapshots.map(\.localIdentifier)),
+                deletedIdentifiers: [],
+                tokenData: tokenData,
+                bootstrap: false
+            ) else {
+                logError("Failed to enqueue burst frames; retrying on next run", category: .database)
+                return false
+            }
+        }
+        defaults.set(true, forKey: Self.burstFramesBackfilledKey)
+        logInfo("Burst frame backfill enqueued \(burstIdentifiers.count) assets", category: .hash)
         return true
     }
 
