@@ -42,7 +42,7 @@ final class RAWFormatChecker {
             guard let self, operation?.isCancelled == false else { return }
             autoreleasepool {
                 let result = PHAsset.fetchAssets(
-                    withLocalIdentifiers: [assetIdentifier], options: nil
+                    withLocalIdentifiers: [assetIdentifier], options: .library(includeHidden: false)
                 )
                 guard let asset = result.firstObject,
                       operation?.isCancelled == false else { return }

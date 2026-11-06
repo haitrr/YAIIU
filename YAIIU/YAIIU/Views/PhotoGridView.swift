@@ -1973,7 +1973,7 @@ struct PhotoGridView: View {
         dragState.reset()
 
         Task.detached(priority: .userInitiated) {
-            let result = PHAsset.fetchAssets(withLocalIdentifiers: identifiersToUpload, options: nil)
+            let result = PHAsset.fetchAssets(withLocalIdentifiers: identifiersToUpload, options: .library(includeHidden: false))
             var assetsToUpload: [PHAsset] = []
             assetsToUpload.reserveCapacity(result.count)
             result.enumerateObjects { asset, _, _ in
