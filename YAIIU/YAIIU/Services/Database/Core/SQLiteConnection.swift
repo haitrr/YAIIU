@@ -55,7 +55,7 @@ final class SQLiteConnection {
     // MARK: - Database Setup
     
     private func openDatabase() {
-        let appGroupIdentifier = "group.com.fawenyo.yaiiu"
+        let appGroupIdentifier = "group.com.haitrr.yaiiu"
         
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
             logError("Failed to get app group container URL", category: .database)

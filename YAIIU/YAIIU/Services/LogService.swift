@@ -81,7 +81,7 @@ class LogService {
     private let logQueue = DispatchQueue(label: "com.fawenyo.yaiiu.logservice", qos: .utility)
     private let maxLogEntries = 10000
     private let logFileName = "yaiiu.log"
-    private let appGroupID = "group.com.fawenyo.yaiiu"
+    private let appGroupID = "group.com.haitrr.yaiiu"
     private let backgroundLogFileName = "background_upload.log"
     
     var minimumLogLevel: LogLevel = .debug

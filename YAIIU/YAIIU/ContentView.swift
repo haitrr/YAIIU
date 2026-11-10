@@ -526,7 +526,7 @@ struct SettingsView: View {
 
     private func exportDatabase() {
         logInfo("User requested database export", category: .app)
-        let appGroupIdentifier = "group.com.fawenyo.yaiiu"
+        let appGroupIdentifier = "group.com.haitrr.yaiiu"
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
             logError("Failed to get app group container for database export", category: .database)
             return

@@ -27,7 +27,7 @@ final class BackgroundUploadExtensionCore {
     private let pathLock = NSLock()
     private var currentPath: NWPath?
     private var hasReceivedInitialPath = false
-    private let appGroupID = "group.com.fawenyo.yaiiu"
+    private let appGroupID = "group.com.haitrr.yaiiu"
     private lazy var creationRecovery = BackgroundUploadCreationRecovery(
         preferences: UserDefaults(suiteName: appGroupID)
     )

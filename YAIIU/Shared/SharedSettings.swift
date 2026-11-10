@@ -2,12 +2,12 @@ import Foundation
 import Security
 
 /// SharedSettings uses App Group to share settings between the main App and Extension
-/// App Group: group.com.fawenyo.yaiiu
+/// App Group: group.com.haitrr.yaiiu
 
 class SharedSettings {
     static let shared = SharedSettings()
     
-    private let appGroupIdentifier = "group.com.fawenyo.yaiiu"
+    private let appGroupIdentifier = "group.com.haitrr.yaiiu"
     private let userDefaults: UserDefaults?
     
     // MARK: - Keys
@@ -26,7 +26,7 @@ class SharedSettings {
     // MARK: - Keychain
     private let keychainService = "com.fawenyo.yaiiu.shared"
     private let keychainAccount = "api_key"
-    private let keychainAccessGroup = "group.com.fawenyo.yaiiu"
+    private let keychainAccessGroup = "group.com.haitrr.yaiiu"
     
     private init() {
         userDefaults = UserDefaults(suiteName: appGroupIdentifier)

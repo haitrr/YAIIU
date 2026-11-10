@@ -110,7 +110,7 @@ final class BackgroundUploadDatabase {
     
     private func openDatabase() {
         guard let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.fawenyo.yaiiu"
+            forSecurityApplicationGroupIdentifier: "group.com.haitrr.yaiiu"
         ) else {
             print("[BackgroundUploadDatabase] Failed to get app group container")
             return

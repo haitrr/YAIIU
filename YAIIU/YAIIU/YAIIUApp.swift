@@ -36,7 +36,7 @@ enum TemporaryFileCleanup {
             cleanDirectory(at: FileManager.default.temporaryDirectory)
 
             if let groupContainer = FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: "group.com.fawenyo.yaiiu"
+                forSecurityApplicationGroupIdentifier: "group.com.haitrr.yaiiu"
             ) {
                 let groupTmp = groupContainer.appendingPathComponent("tmp", isDirectory: true)
                 cleanDirectory(at: groupTmp)

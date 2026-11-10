@@ -798,7 +798,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = U46W9497DX;
+				DEVELOPMENT_TEAM = 42PWLQF3Z6;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -864,7 +864,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = U46W9497DX;
+				DEVELOPMENT_TEAM = 42PWLQF3Z6;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -910,7 +910,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.10;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fawenyo.yaiiu;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haitrr.yaiiu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -944,7 +944,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.10;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fawenyo.yaiiu;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haitrr.yaiiu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -962,7 +962,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = U46W9497DX;
+				DEVELOPMENT_TEAM = 42PWLQF3Z6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = BackgroundUploadExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = BackgroundUploadExtension;
@@ -974,7 +974,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.10;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fawenyo.yaiiu.BackgroundUploadExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haitrr.yaiiu.BackgroundUploadExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
@@ -994,7 +994,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = U46W9497DX;
+				DEVELOPMENT_TEAM = 42PWLQF3Z6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = BackgroundUploadExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = BackgroundUploadExtension;
@@ -1006,7 +1006,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.10;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fawenyo.yaiiu.BackgroundUploadExtension;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haitrr.yaiiu.BackgroundUploadExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
@@ -1033,7 +1033,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fawenyo.yaiiu.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haitrr.yaiiu.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -1056,7 +1056,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.fawenyo.yaiiu.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.haitrr.yaiiu.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
