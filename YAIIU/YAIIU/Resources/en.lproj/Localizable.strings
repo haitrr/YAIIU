@@ -231,6 +231,8 @@
 "backgroundUpload.noLogs" = "No logs available";
 "backgroundUpload.notSupported" = "Feature not supported";
 "backgroundUpload.allowCellular" = "Allow Cellular Data";
+"backgroundUpload.uploadOnOpen" = "Upload When App Opens";
+"backgroundUpload.uploadOnOpen.description" = "Each time you open the app, everything not yet uploaded is uploaded, with progress on the Upload tab. Uses Wi-Fi, and cellular data only when allowed.";
 "backgroundUpload.error.photoLibraryNotAuthorized" = "Full photo library access is required to enable background upload";
 "backgroundUpload.error.notLoggedIn" = "Please login to Immich server first";
 "backgroundUpload.error.notUsingImmichProxy" = "Background upload requires immich-proxy as the server URL. Please point YAIIU to immich-proxy instead of the official Immich server.";

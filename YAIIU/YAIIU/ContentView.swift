@@ -203,9 +203,21 @@ struct SettingsView: View {
                     }
                 }
                 
-                // iOS 26.1+ Background Upload Settings
-                if #available(iOS 26.1, *) {
-                    Section(header: Text(L10n.BackgroundUpload.sectionAutoUpload), footer: Text(L10n.BackgroundUpload.description).font(.caption)) {
+                Section(header: Text(L10n.BackgroundUpload.sectionAutoUpload), footer: autoUploadFooter.font(.caption)) {
+                    Toggle(isOn: Binding(
+                        get: { settingsManager.autoUploadOnOpen },
+                        set: { settingsManager.updateAutoUploadOnOpen($0) }
+                    )) {
+                        HStack {
+                            Image(systemName: "arrow.up.circle")
+                                .foregroundColor(.blue)
+                            Text(L10n.BackgroundUpload.uploadOnOpen)
+                                .foregroundColor(.primary)
+                        }
+                    }
+
+                    // iOS 26.1+ Background Upload Settings
+                    if #available(iOS 26.1, *) {
                         Toggle(isOn: $backgroundUploadEnabled) {
                             HStack {
                                 Image(systemName: "arrow.up.circle.badge.clock")
@@ -223,11 +235,15 @@ struct SettingsView: View {
                         .onChange(of: backgroundUploadEnabled) { _, newValue in
                             toggleBackgroundUpload(enabled: newValue)
                         }
-                        Toggle(L10n.BackgroundUpload.allowCellular, isOn: Binding(
-                            get: { settingsManager.allowCellularBackgroundUpload },
-                            set: { settingsManager.updateAllowCellularBackgroundUpload($0) }
-                        ))
-                        
+                    }
+
+                    // Applies to both upload-on-open and background upload.
+                    Toggle(L10n.BackgroundUpload.allowCellular, isOn: Binding(
+                        get: { settingsManager.allowCellularBackgroundUpload },
+                        set: { settingsManager.updateAllowCellularBackgroundUpload($0) }
+                    ))
+
+                    if #available(iOS 26.1, *) {
                         if let error = backgroundUploadError {
                             HStack {
                                 Image(systemName: "exclamationmark.triangle.fill")
@@ -538,6 +554,13 @@ struct SettingsView: View {
                 logError("Failed to export database: \(error.localizedDescription)", category: .database)
             }
         }
+    }
+
+    private var autoUploadFooter: Text {
+        if #available(iOS 26.1, *) {
+            return Text(L10n.BackgroundUpload.uploadOnOpenDescription + "\n\n" + L10n.BackgroundUpload.description)
+        }
+        return Text(L10n.BackgroundUpload.uploadOnOpenDescription)
     }
 
     private func loadBackgroundUploadStatus() {

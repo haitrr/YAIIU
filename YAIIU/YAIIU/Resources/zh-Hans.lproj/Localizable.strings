@@ -230,6 +230,8 @@
 "backgroundUpload.noLogs" = "没有日志";
 "backgroundUpload.notSupported" = "不支持此功能";
 "backgroundUpload.allowCellular" = "允许使用蜂窝数据";
+"backgroundUpload.uploadOnOpen" = "打开 App 时上传";
+"backgroundUpload.uploadOnOpen.description" = "每次打开 App 时，会上传所有尚未上传的项目，进度显示在“上传”标签页。使用 Wi-Fi，仅在允许时使用蜂窝数据。";
 "backgroundUpload.error.photoLibraryNotAuthorized" = "需要完整的照片库访问权限才能启用后台上传";
 "backgroundUpload.error.notLoggedIn" = "请先登录 Immich 服务器";
 "backgroundUpload.error.notUsingImmichProxy" = "后台上传需要将服务器 URL 设置为 immich-proxy，请将 YAIIU 指向 immich-proxy，而不是官方 Immich 服务器。";

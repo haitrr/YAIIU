@@ -23,6 +23,7 @@ class SettingsManager: ObservableObject {
     @Published var apiKey: String = ""
     @Published var isLoggedIn: Bool = false
     @Published var allowCellularBackgroundUpload: Bool = true
+    @Published var autoUploadOnOpen: Bool = true
     @Published var syncApplePhotosAlbums: Bool = false
     @Published var hasCompletedOnboarding: Bool = false
     @Published var hasCompletedInitialSetup: Bool = false
@@ -37,6 +38,7 @@ class SettingsManager: ObservableObject {
     private let hasCompletedInitialSetupKey = "immich_has_completed_initial_setup"
     private let hasCompletedPhotoPermissionKey = "immich_has_completed_photo_permission"
     private let allowCellularBackgroundUploadKey = "immich_allow_cellular_background_upload"
+    private let autoUploadOnOpenKey = "yaiiu_auto_upload_on_open"
     static let syncApplePhotosAlbumsKey = "immich_sync_apple_photos_albums"
     init(preferences: UserDefaults = .standard, credentialStore: CredentialStorage = SystemKeychainCredentialStore()) {
         self.preferences = preferences
@@ -56,6 +58,7 @@ class SettingsManager: ObservableObject {
         hasCompletedInitialSetup = preferences.bool(forKey: hasCompletedInitialSetupKey)
         hasCompletedPhotoPermission = preferences.bool(forKey: hasCompletedPhotoPermissionKey)
         allowCellularBackgroundUpload = preferences.object(forKey: allowCellularBackgroundUploadKey) as? Bool ?? true
+        autoUploadOnOpen = preferences.object(forKey: autoUploadOnOpenKey) as? Bool ?? true
         syncApplePhotosAlbums = preferences.bool(forKey: Self.syncApplePhotosAlbumsKey)
 
         // A transient Keychain read failure must not permanently erase the saved
@@ -159,6 +162,11 @@ class SettingsManager: ObservableObject {
         syncToSharedSettings()
     }
 
+    func updateAutoUploadOnOpen(_ enabled: Bool) {
+        autoUploadOnOpen = enabled
+        preferences.set(enabled, forKey: autoUploadOnOpenKey)
+    }
+
     private func scheduleAlbumSyncIfEnabled() {
         guard isLoggedIn, syncApplePhotosAlbums else { return }
         Task { await AlbumSyncService.shared.syncIfEnabled() }
@@ -220,6 +228,7 @@ class SettingsManager: ObservableObject {
         self.apiKey = ""
         self.isLoggedIn = false
         self.allowCellularBackgroundUpload = true
+        self.autoUploadOnOpen = true
         self.syncApplePhotosAlbums = false
         
         preferences.removeObject(forKey: serverURLKey)
@@ -227,6 +236,7 @@ class SettingsManager: ObservableObject {
         preferences.removeObject(forKey: internalNetworkSSIDKey)
         preferences.removeObject(forKey: Self.isLoggedInKey)
         preferences.removeObject(forKey: allowCellularBackgroundUploadKey)
+        preferences.removeObject(forKey: autoUploadOnOpenKey)
         preferences.removeObject(forKey: Self.syncApplePhotosAlbumsKey)
         let keychainStatus = credentialStore.delete()
         if keychainStatus != errSecSuccess && keychainStatus != errSecItemNotFound {

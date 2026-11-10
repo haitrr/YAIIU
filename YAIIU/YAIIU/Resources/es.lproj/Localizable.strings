@@ -230,6 +230,8 @@
 "backgroundUpload.noLogs" = "No hay registros disponibles";
 "backgroundUpload.notSupported" = "Función no soportada";
 "backgroundUpload.allowCellular" = "Permitir datos móviles";
+"backgroundUpload.uploadOnOpen" = "Subir al abrir la app";
+"backgroundUpload.uploadOnOpen.description" = "Cada vez que abres la app se sube todo lo que aún no se ha subido, con el progreso en la pestaña Subir. Usa Wi-Fi, y datos móviles solo si están permitidos.";
 "backgroundUpload.error.photoLibraryNotAuthorized" = "Se requiere acceso completo a la biblioteca de fotos para activar la subida en segundo plano";
 "backgroundUpload.error.notLoggedIn" = "Por favor inicia sesión en el servidor Immich primero";
 "backgroundUpload.error.notUsingImmichProxy" = "La subida en segundo plano requiere que la URL del servidor apunte a immich-proxy. Configura YAIIU para usar immich-proxy en lugar del servidor oficial de Immich.";

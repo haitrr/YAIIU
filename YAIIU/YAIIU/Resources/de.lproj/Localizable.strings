@@ -230,6 +230,8 @@
 "backgroundUpload.noLogs" = "Keine Protokolle verfügbar";
 "backgroundUpload.notSupported" = "Funktion nicht unterstützt";
 "backgroundUpload.allowCellular" = "Mobilfunkdaten erlauben";
+"backgroundUpload.uploadOnOpen" = "Beim Öffnen hochladen";
+"backgroundUpload.uploadOnOpen.description" = "Bei jedem Öffnen der App wird alles noch nicht Hochgeladene hochgeladen, mit Fortschritt im Tab „Upload“. Nutzt WLAN und Mobilfunkdaten nur, wenn erlaubt.";
 "backgroundUpload.error.photoLibraryNotAuthorized" = "Vollständiger Zugriff auf die Fotobibliothek ist erforderlich, um den Hintergrund-Upload zu aktivieren";
 "backgroundUpload.error.notLoggedIn" = "Bitte melden Sie sich zuerst beim Immich-Server an";
 "backgroundUpload.error.notUsingImmichProxy" = "Für Hintergrund-Uploads muss die Server-URL auf immich-proxy zeigen. Bitte YAIIU auf immich-proxy statt auf den offiziellen Immich-Server setzen.";

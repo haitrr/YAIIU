@@ -449,6 +449,8 @@ enum L10n {
         static var noLogs: String { "backgroundUpload.noLogs".localized }
         static var notSupported: String { "backgroundUpload.notSupported".localized }
         static var allowCellular: String { "backgroundUpload.allowCellular".localized }
+        static var uploadOnOpen: String { "backgroundUpload.uploadOnOpen".localized }
+        static var uploadOnOpenDescription: String { "backgroundUpload.uploadOnOpen.description".localized }
         static var errorPhotoLibraryNotAuthorized: String { "backgroundUpload.error.photoLibraryNotAuthorized".localized }
         static var errorNotLoggedIn: String { "backgroundUpload.error.notLoggedIn".localized }
         static var errorNotUsingImmichProxy: String { "backgroundUpload.error.notUsingImmichProxy".localized }

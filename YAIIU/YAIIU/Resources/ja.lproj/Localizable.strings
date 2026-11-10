@@ -230,6 +230,8 @@
 "backgroundUpload.noLogs" = "ログがありません";
 "backgroundUpload.notSupported" = "機能がサポートされていません";
 "backgroundUpload.allowCellular" = "モバイルデータ通信を許可";
+"backgroundUpload.uploadOnOpen" = "アプリ起動時にアップロード";
+"backgroundUpload.uploadOnOpen.description" = "アプリを開くたびに、未アップロードの項目をすべてアップロードします。進行状況は「アップロード」タブに表示されます。Wi-Fi を使用し、許可されている場合のみモバイルデータ通信を使用します。";
 "backgroundUpload.error.photoLibraryNotAuthorized" = "バックグラウンドアップロードを有効にするには、写真ライブラリへのフルアクセス権限が必要です";
 "backgroundUpload.error.notLoggedIn" = "まずImmichサーバーにログインしてください";
 "backgroundUpload.error.notUsingImmichProxy" = "バックグラウンドアップロードを利用するには、サーバーURLにimmich-proxyを指定する必要があります。YAIIUの接続先を公式Immichサーバーではなくimmich-proxyに設定してください。";

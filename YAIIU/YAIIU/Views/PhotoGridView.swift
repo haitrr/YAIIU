@@ -381,6 +381,7 @@ struct PhotoGridView: View {
     @Namespace private var photoTransitionNamespace
     
     @StateObject private var dragState = DragSelectionState()
+    @StateObject private var autoUploader = ForegroundAutoUploader()
     @State private var gridContainerWidth: CGFloat = 0
     
     private static let columnCount = 3
@@ -565,6 +566,8 @@ struct PhotoGridView: View {
             if currentFilter == .favorites || currentFilter == .album {
                 refreshPhotoKitFilter()
             }
+            autoUploader.bind(uploadManager: uploadManager, settingsManager: settingsManager)
+            startAutoUploadIfNeeded()
         }
         .onChange(of: settingsManager.serverURL) { _, _ in
             hashManager.bindProvisionalSyncStatus(to: statusDestinationIdentity)
@@ -575,11 +578,15 @@ struct PhotoGridView: View {
             scheduleCountRefresh()
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .active && oldPhase != .active {
+                autoUploader.activationBegan()
+            }
             if newPhase == .active {
                 // Photos permission can be changed in Settings while the
                 // existing grid stays alive. Update the published gate first.
                 photoLibraryManager.refreshAuthorizationStatus()
                 performAutoSync()
+                startAutoUploadIfNeeded()
                 if currentFilter == .favorites || currentFilter == .album {
                     refreshPhotoKitFilter()
                 }
@@ -646,6 +653,17 @@ struct PhotoGridView: View {
                     scheduleCountRefresh()
                 }
             }
+        }
+        // The authoritative Not Uploaded count is published only once status
+        // is trustworthy; that is the moment automatic upload may start.
+        .onChange(of: cachedNotUploadedCount) { _, _ in
+            startAutoUploadIfNeeded()
+        }
+        .onChange(of: settingsManager.autoUploadOnOpen) { _, _ in
+            startAutoUploadIfNeeded()
+        }
+        .onReceive(NetworkReachability.shared.$networkInterface.removeDuplicates().receive(on: RunLoop.main)) { _ in
+            startAutoUploadIfNeeded()
         }
         .onChange(of: isSyncing) { _, syncing in
             if syncing {
@@ -1896,6 +1914,14 @@ struct PhotoGridView: View {
         selectedAssets = next
     }
     
+    private func startAutoUploadIfNeeded() {
+        autoUploader.startIfNeeded(
+            isStatusReady: canPresentNotUploadedCount,
+            fetchResult: photoLibraryManager.fetchResult,
+            statusCache: hashManager.syncStatusCache
+        )
+    }
+
     private func selectAllNotUploaded() {
         let statusCache = hashManager.syncStatusCache
         guard canSelectDisplayedPhotos, !isSelectingAll,

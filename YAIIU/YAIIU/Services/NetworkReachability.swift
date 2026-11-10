@@ -9,6 +9,7 @@ final class NetworkReachability: NSObject, ObservableObject {
     
     @Published private(set) var isOnInternalNetwork = false
     @Published private(set) var isConnected = false
+    @Published private(set) var networkInterface: BackgroundUploadNetworkInterface = .unknown
     @Published private(set) var currentSSID: String?
     @Published private(set) var locationAuthorizationStatus: CLAuthorizationStatus = .notDetermined
     @Published private(set) var isPreciseLocationEnabled: Bool = false
@@ -72,9 +73,20 @@ final class NetworkReachability: NSObject, ObservableObject {
         monitor.pathUpdateHandler = { [weak self] path in
             let connected = path.status == .satisfied
             let isWiFi = path.usesInterfaceType(.wifi)
-            
+            let interface: BackgroundUploadNetworkInterface
+            if !connected {
+                interface = .unavailable
+            } else if isWiFi {
+                interface = .wifi
+            } else if path.usesInterfaceType(.cellular) {
+                interface = .cellular
+            } else {
+                interface = .other
+            }
+
             DispatchQueue.main.async {
                 self?.isConnected = connected
+                self?.networkInterface = interface
             }
             
             if connected && isWiFi {
