@@ -798,7 +798,7 @@ class HashManager: ObservableObject {
             self.objectWillChange.send()
         }
 
-        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
+        let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: .library(includeHidden: false))
         guard isCurrentRun(runID), !shouldStop, !Task.isCancelled else { return }
 
         guard let asset = fetchResult.firstObject,
@@ -914,8 +914,7 @@ class HashManager: ObservableObject {
             // Never persist a hash or clear pending work when selected resources
             // no longer match current PhotoKit metadata.
             if files.plan.resourceFingerprint != nil {
-                let options = PHFetchOptions()
-                options.includeHiddenAssets = true
+                let options = PHFetchOptions.library(includeHidden: true)
                 let currentAsset = PHAsset.fetchAssets(
                     withLocalIdentifiers: [identifier], options: options
                 ).firstObject
@@ -1036,7 +1035,7 @@ class HashManager: ObservableObject {
         // Only visible, accessible PhotoKit assets can be verified. Missing
         // fetch results are NOT deletions (iCloud/hidden/Limited Photos).
         let allIdentifiers = records.map(\.assetId)
-        let fetched = PHAsset.fetchAssets(withLocalIdentifiers: allIdentifiers, options: nil)
+        let fetched = PHAsset.fetchAssets(withLocalIdentifiers: allIdentifiers, options: .library(includeHidden: false))
         var accessible = Set<String>()
         fetched.enumerateObjects { asset, _, _ in
             accessible.insert(asset.localIdentifier)
