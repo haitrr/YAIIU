@@ -2099,15 +2099,15 @@ private struct PhotoGridItemView: View {
         }
         .onDisappear {
             isCellActive = false
-            // LazyVGrid may retain offscreen rows; drop their PhotoKit objects.
-            asset = nil
-            appliedEditGeneration = nil
-            observedAssetIdentifier = nil
-            observedContentRevision = nil
+            // Keep the asset while offscreen. Clearing it here swaps the cell
+            // between placeholder and thumbnail on every appear/disappear;
+            // after a PhotoKit insert shifts every index, the two cells on the
+            // viewport edge then toggle visibility forever and freeze the UI.
+            // LazyVGrid discards far-offscreen cells (and their state) itself.
             onDisappear()
         }
         .onChange(of: assetIndex) { _, _ in
-            // Rebind only visible rows. Offscreen rows have released their assets.
+            // Rebind only visible rows. Offscreen rows rebind in onAppear.
             if isCellActive { loadAsset() }
         }
         .onChange(of: refreshToken) { _, _ in
