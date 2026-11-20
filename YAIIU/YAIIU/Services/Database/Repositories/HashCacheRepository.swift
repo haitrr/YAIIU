@@ -592,6 +592,101 @@ final class HashCacheRepository {
         }
     }
 
+    /// Assets whose last checksum verification found them missing from the
+    /// server and that have no upload receipt. Unchecked hashes are left out:
+    /// until verified they are unknown, not missing. The predicate mirrors
+    /// getAllSyncStatusAsync, including RAW pairs needing both resources.
+    ///
+    /// - Parameters:
+    ///   - identifiers: limits the result to these assets; nil checks all.
+    ///   - visibleOnly: drops assets the PhotoKit inventory records as hidden.
+    /// - Returns: nil when the query fails.
+    func verifiedNotUploadedIdentifiers(among identifiers: [String]?, visibleOnly: Bool) -> [String]? {
+        if let identifiers, identifiers.isEmpty { return [] }
+        connection.ensureInitialized()
+        return connection.dbQueue.sync { [weak self] () -> [String]? in
+            guard let self else { return nil }
+            let db = self.connection.db
+
+            var joinVisible = false
+            if visibleOnly {
+                var ready: OpaquePointer?
+                if sqlite3_prepare_v2(
+                    db, "SELECT is_ready FROM local_photo_inventory_state WHERE id = 1;", -1, &ready, nil
+                ) == SQLITE_OK {
+                    joinVisible = sqlite3_step(ready) == SQLITE_ROW && sqlite3_column_int(ready, 0) == 1
+                }
+                sqlite3_finalize(ready)
+            }
+
+            let missing = """
+                h.checked_at IS NOT NULL AND (
+                    (COALESCE(h.has_raw, 0) = 1 AND (
+                        (COALESCE(h.is_on_server, 0) != 1 AND NOT EXISTS (
+                            SELECT 1 FROM uploaded_assets u
+                            WHERE u.asset_id = h.asset_id AND u.resource_type NOT IN ('raw', 'live_video')
+                        ))
+                        OR (COALESCE(h.raw_on_server, 0) != 1 AND NOT EXISTS (
+                            SELECT 1 FROM uploaded_assets u
+                            WHERE u.asset_id = h.asset_id AND u.resource_type = 'raw'
+                        ))
+                    ))
+                    OR (COALESCE(h.has_raw, 0) != 1 AND COALESCE(h.is_on_server, 0) != 1 AND NOT EXISTS (
+                        SELECT 1 FROM uploaded_assets u
+                        WHERE u.asset_id = h.asset_id AND u.resource_type != 'live_video'
+                    ))
+                )
+                """
+            let from = joinVisible
+                ? "FROM hash_cache h JOIN local_photo_assets a ON a.asset_id = h.asset_id AND a.is_hidden = 0"
+                : "FROM hash_cache h"
+
+            func run(_ batch: [String]?) -> [String]? {
+                let filter = batch.map { ids in
+                    " AND h.asset_id IN (\(Array(repeating: "?", count: ids.count).joined(separator: ",")))"
+                } ?? ""
+                let sql = "SELECT h.asset_id \(from) WHERE \(missing)\(filter);"
+                var statement: OpaquePointer?
+                defer { sqlite3_finalize(statement) }
+                guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
+                for (index, identifier) in (batch ?? []).enumerated() {
+                    guard sqlite3_bind_text(
+                        statement, Int32(index + 1), (identifier as NSString).utf8String,
+                        -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+                    ) == SQLITE_OK else { return nil }
+                }
+                var result: [String] = []
+                while true {
+                    let status = sqlite3_step(statement)
+                    if status == SQLITE_DONE { return result }
+                    guard status == SQLITE_ROW else { return nil }
+                    if let id = sqlite3_column_text(statement, 0) {
+                        result.append(String(cString: id))
+                    }
+                }
+            }
+
+            guard let identifiers else {
+                let result = run(nil)
+                if result == nil {
+                    logError("Verified not-uploaded query failed: \(self.connection.lastErrorMessage)", category: .database)
+                }
+                return result
+            }
+            let unique = Array(Set(identifiers))
+            var result: [String] = []
+            // Stay below SQLite's older 999-parameter limit.
+            for start in stride(from: 0, to: unique.count, by: 400) {
+                guard let rows = run(Array(unique[start..<min(start + 400, unique.count)])) else {
+                    logError("Verified not-uploaded query failed: \(self.connection.lastErrorMessage)", category: .database)
+                    return nil
+                }
+                result.append(contentsOf: rows)
+            }
+            return result
+        }
+    }
+
     // MARK: - Update Methods
     
     func updateHashCacheServerStatus(localIdentifier: String, isOnServer: Bool) {

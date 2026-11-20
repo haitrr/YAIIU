@@ -14,8 +14,28 @@ enum ForegroundAutoUploadPolicy {
         BackgroundUploadPolicy.canCreateNewJobs(allowCellular: allowCellular, interface: interface)
     }
 
-    /// Starts only once upload status is authoritative; an unhashed library
-    /// would otherwise look "not uploaded".
+    /// Whether photos already known to be missing from the server may join
+    /// the upload queue now. A running upload is no reason to wait: they are
+    /// added to it. A user's pause holds until the app is next opened.
+    static func canQueue(
+        isEnabled: Bool,
+        hasServer: Bool,
+        isNetworkAllowed: Bool,
+        isPausedByUser: Bool
+    ) -> Bool {
+        isEnabled && hasServer && isNetworkAllowed && !isPausedByUser
+    }
+
+    /// Identifiers not yet queued during this activation, without duplicates,
+    /// in their original order.
+    static func unattempted(_ identifiers: [String], excluding attempted: Set<String>) -> [String] {
+        var seen = attempted
+        return identifiers.filter { seen.insert($0).inserted }
+    }
+
+    /// The full-library sweep. Starts only once upload status is authoritative;
+    /// an unhashed library would otherwise look "not uploaded". Photos known
+    /// to be missing are queued earlier through canQueue.
     static func shouldStart(
         isEnabled: Bool,
         isStatusReady: Bool,

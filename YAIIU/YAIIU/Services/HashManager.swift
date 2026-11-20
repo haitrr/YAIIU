@@ -408,6 +408,15 @@ class HashManager: ObservableObject {
     /// The source checksum is carried so metadata PUTs (which replace the whole
     /// mobile-app value server-side) never drop it.
     @Published var pendingICloudIdUpdates: [(localIdentifier: String, immichId: String, iCloudId: String, sourceChecksum: String?)] = []
+
+    /// Assets found missing from the server while hashing is still running,
+    /// sent on the main thread a small batch at a time. Lets automatic upload
+    /// start on the first missing photo instead of after the whole run.
+    let assetsVerifiedMissingFromServer = PassthroughSubject<[String], Never>()
+    /// Freshly hashed assets awaiting verification; main thread only.
+    private var streamingVerificationQueue: [(identifier: String, runID: UUID)] = []
+    private var isStreamingVerificationRunning = false
+    private static let streamingVerificationBatchSize = 200
     
     private var processingQueue: [String] = []
     private var isHashingActive = false
@@ -967,6 +976,7 @@ class HashManager: ObservableObject {
                 self.statusMessage = "Analyzing photos (\(self.processedAssetsCount)/\(self.totalAssetsToProcess))..."
                 self.syncStatusCache[identifier] = .pending
                 self.objectWillChange.send()
+                self.enqueueStreamingVerification(identifier, runID: runID)
             }
         } catch {
             guard !Task.isCancelled else { return }
@@ -1089,25 +1099,7 @@ class HashManager: ObservableObject {
             }
             guard isCurrentRun(runID), !shouldStop, !Task.isCancelled else { return }
 
-            var metadataUpdates: [(localIdentifier: String, immichId: String, iCloudId: String, sourceChecksum: String?)] = []
-            if #available(iOS 16, *), !candidates.isEmpty {
-                let mappings = PHPhotoLibrary.shared().cloudIdentifierMappings(
-                    forLocalIdentifiers: candidates.map(\.assetId)
-                )
-                for candidate in candidates {
-                    guard let result = mappings[candidate.assetId],
-                          let cloudId = try? result.get(),
-                          !cloudId.stringValue.hasSuffix(":"),
-                          candidate.serverICloudId != cloudId.stringValue,
-                          queuedMetadata.insert(candidate.immichId).inserted else { continue }
-                    metadataUpdates.append((
-                        localIdentifier: candidate.assetId,
-                        immichId: candidate.immichId,
-                        iCloudId: cloudId.stringValue,
-                        sourceChecksum: candidate.sourceChecksum
-                    ))
-                }
-            }
+            let metadataUpdates = cloudMetadataUpdates(for: candidates, queued: &queuedMetadata)
             queuedCount += metadataUpdates.count
 
             // Progress and published state change once per 400 assets rather
@@ -1129,6 +1121,117 @@ class HashManager: ObservableObject {
             category: .hash
         )
         await MainActor.run { self.finishProcessing(runID: runID, shouldSyncAlbums: true) }
+    }
+
+    private typealias CloudMetadataUpdate = (localIdentifier: String, immichId: String, iCloudId: String, sourceChecksum: String?)
+
+    /// Server assets whose recorded iCloud ID is missing or stale; `queued`
+    /// holds Immich IDs already scheduled, so each is updated once.
+    private func cloudMetadataUpdates(
+        for candidates: [CloudMetadataCandidate],
+        queued: inout Set<String>
+    ) -> [CloudMetadataUpdate] {
+        guard #available(iOS 16, *) else { return [] }
+        guard !candidates.isEmpty else { return [] }
+        let mappings = PHPhotoLibrary.shared().cloudIdentifierMappings(
+            forLocalIdentifiers: candidates.map(\.assetId)
+        )
+        var updates: [CloudMetadataUpdate] = []
+        for candidate in candidates {
+            guard let result = mappings[candidate.assetId],
+                  let cloudId = try? result.get(),
+                  !cloudId.stringValue.hasSuffix(":"),
+                  candidate.serverICloudId != cloudId.stringValue,
+                  queued.insert(candidate.immichId).inserted else { continue }
+            updates.append((
+                localIdentifier: candidate.assetId,
+                immichId: candidate.immichId,
+                iCloudId: cloudId.stringValue,
+                sourceChecksum: candidate.sourceChecksum
+            ))
+        }
+        return updates
+    }
+
+    // MARK: - Streaming verification
+
+    /// Queues a freshly hashed asset for verification against the server
+    /// cache. Batches form on their own while a previous one is running.
+    @MainActor
+    private func enqueueStreamingVerification(_ identifier: String, runID: UUID) {
+        streamingVerificationQueue.append((identifier, runID))
+        guard !isStreamingVerificationRunning else { return }
+        isStreamingVerificationRunning = true
+        Task.detached(priority: .utility) { [weak self] in
+            await self?.drainStreamingVerification()
+        }
+    }
+
+    private func drainStreamingVerification() async {
+        while true {
+            let next = await MainActor.run { () -> (identifiers: [String], runID: UUID)? in
+                // Work from a finished or stopped run is left unchecked for
+                // the end-of-run batch verification, now or in the next run.
+                self.streamingVerificationQueue.removeAll { !self.isCurrentRun($0.runID) }
+                guard let runID = self.streamingVerificationQueue.first?.runID else {
+                    self.isStreamingVerificationRunning = false
+                    return nil
+                }
+                let identifiers = self.streamingVerificationQueue
+                    .prefix(Self.streamingVerificationBatchSize)
+                    .map(\.identifier)
+                self.streamingVerificationQueue.removeFirst(identifiers.count)
+                return (identifiers, runID)
+            }
+            guard let next else { return }
+            await verifyHashedAssets(next.identifiers, runID: next.runID)
+        }
+    }
+
+    /// Verifies a batch of hashed assets now rather than after the whole run,
+    /// and announces the ones missing from the server. Assets left unchecked
+    /// here are verified by the end-of-run batch check as before.
+    private func verifyHashedAssets(_ identifiers: [String], runID: UUID) async {
+        // Same rule as startServerCheck: no negative result without a baseline.
+        guard isCurrentRun(runID), !shouldStop,
+              let syncMetadata = DatabaseManager.shared.getSyncMetadata(),
+              syncMetadata.lastSyncTime != nil else { return }
+
+        await ServerAssetVerificationGate.shared.acquire()
+        defer {
+            Task { await ServerAssetVerificationGate.shared.release() }
+        }
+        guard isCurrentRun(runID), !shouldStop,
+              let candidates = DatabaseManager.shared.verifyHashCacheBatch(
+                  identifiers: identifiers, ownerId: syncMetadata.userId
+              ) else { return }
+        let missing = DatabaseManager.shared.verifiedNotUploadedIdentifiers(
+            among: identifiers, visibleOnly: false
+        ) ?? []
+        var queued = Set<String>()
+        let metadataUpdates = cloudMetadataUpdates(for: candidates, queued: &queued)
+
+        let published = await MainActor.run { () -> Bool in
+            guard self.isCurrentRun(runID), !self.shouldStop else { return false }
+            let alreadyQueued = Set(self.pendingICloudIdUpdates.map(\.immichId))
+            self.pendingICloudIdUpdates.append(
+                contentsOf: metadataUpdates.filter { !alreadyQueued.contains($0.immichId) }
+            )
+            guard !missing.isEmpty else { return true }
+            // Uploaded assets keep .pending until the run's final reload.
+            for identifier in missing {
+                self.syncStatusCache[identifier] = .notUploaded
+            }
+            self.objectWillChange.send()
+            logInfo("Streaming verification: \(missing.count) of \(identifiers.count) asset(s) missing from server", category: .hash)
+            self.assetsVerifiedMissingFromServer.send(missing)
+            return true
+        }
+        // As in the batch check: checked_at is already committed, so an
+        // abandoned batch must be restored to unchecked.
+        if !published, !DatabaseManager.shared.invalidateHashChecksForLocalIdentifiers(identifiers) {
+            logError("Could not restore abandoned streaming verification batch", category: .database)
+        }
     }
 
     private func finishProcessing(runID: UUID, shouldSyncAlbums: Bool = false) {

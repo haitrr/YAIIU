@@ -567,6 +567,9 @@ struct PhotoGridView: View {
                 refreshPhotoKitFilter()
             }
             autoUploader.bind(uploadManager: uploadManager, settingsManager: settingsManager)
+            // Photos already known to be missing start uploading right away,
+            // ahead of this launch's server sync and hashing.
+            autoUploader.queueVerifiedMissing()
             startAutoUploadIfNeeded()
         }
         .onChange(of: settingsManager.serverURL) { _, _ in
@@ -580,6 +583,7 @@ struct PhotoGridView: View {
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .active && oldPhase != .active {
                 autoUploader.activationBegan()
+                autoUploader.queueVerifiedMissing()
             }
             if newPhase == .active {
                 // Photos permission can be changed in Settings while the
@@ -655,7 +659,8 @@ struct PhotoGridView: View {
             }
         }
         // The authoritative Not Uploaded count is published only once status
-        // is trustworthy; that is the moment automatic upload may start.
+        // is trustworthy; that is when the full-library sweep runs. Photos
+        // verified missing are queued earlier by the auto uploader itself.
         .onChange(of: cachedNotUploadedCount) { _, _ in
             startAutoUploadIfNeeded()
         }
