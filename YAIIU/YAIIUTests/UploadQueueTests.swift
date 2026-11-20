@@ -87,4 +87,25 @@ final class UploadQueueTests: XCTestCase {
             withExtendedLifetime(subscription) {}
         }
     }
+
+    func testQueueItemLookupFollowsQueueChanges() async {
+        await MainActor.run {
+            let manager = UploadManager()
+            let prepared = PreparedUploadQueue(entries: [
+                (Asset("a"), "a.jpg", false, 1),
+                (Asset("b"), "b.jpg", false, 1),
+            ], skippedCount: 0)
+
+            _ = manager.appendPreparedUploads(prepared)
+
+            XCTAssertEqual(manager.queueItem(for: "a")?.filename, "a.jpg")
+            XCTAssertEqual(manager.queueItem(for: "b")?.filename, "b.jpg")
+            XCTAssertNil(manager.queueItem(for: "missing"))
+
+            manager.uploadQueue.removeAll { $0.localIdentifier == "a" }
+
+            XCTAssertNil(manager.queueItem(for: "a"), "A removed item must not keep showing progress.")
+            XCTAssertEqual(manager.queueItem(for: "b")?.filename, "b.jpg")
+        }
+    }
 }

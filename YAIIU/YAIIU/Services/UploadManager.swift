@@ -157,7 +157,9 @@ private final class UploadTransferPermit: @unchecked Sendable {
 
 @MainActor
 class UploadManager: ObservableObject {
-    @Published var uploadQueue: [UploadItem] = []
+    @Published var uploadQueue: [UploadItem] = [] {
+        didSet { rebuildQueueIndex() }
+    }
     @Published var isUploading: Bool = false
     @Published var uploadedCount: Int = 0
     
@@ -178,6 +180,21 @@ class UploadManager: ObservableObject {
     private let maxInFlightUploads = 8
     private let transferBudget = ResourceBudget(limit: 2)
     
+    /// Grid badges look up their photo's live item; rebuilt only when the
+    /// queue array changes (batch appends and end-of-run cleanup).
+    private var queueIndex: [String: UploadItem] = [:]
+
+    func queueItem(for localIdentifier: String) -> UploadItem? {
+        queueIndex[localIdentifier]
+    }
+
+    private func rebuildQueueIndex() {
+        var index: [String: UploadItem] = [:]
+        index.reserveCapacity(uploadQueue.count)
+        for item in uploadQueue { index[item.localIdentifier] = item }
+        queueIndex = index
+    }
+
     var completedCount: Int {
         uploadQueue.filter { $0.status == .completed }.count
     }

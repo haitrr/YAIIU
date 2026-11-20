@@ -494,6 +494,10 @@ struct PhotoGridView: View {
                         }
                     }
                     
+                    ToolbarItem(placement: .principal) {
+                        navigationTitleView
+                    }
+
                     ToolbarItem(placement: .navigationBarTrailing) {
                         if !isSelectionMode {
                             Button(L10n.PhotoGrid.select) {
@@ -826,30 +830,35 @@ struct PhotoGridView: View {
         }
     }
     
-    @ViewBuilder
-    private var processingStatusView: some View {
-        if hashManager.isProcessing {
-            HStack(spacing: 6) {
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .padding(.vertical, 2)
+    private var showsTitleProcessingIndicator: Bool {
+        hashManager.isProcessing && photoLibraryManager.foregroundBaselineProgress == nil
+    }
 
+    /// Hash progress lives in the title so the grid never shifts when a
+    /// processing pass starts or ends.
+    private var navigationTitleView: some View {
+        HStack(spacing: 6) {
+            if !navigationTitle.isEmpty {
+                Text(navigationTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+            }
+            if showsTitleProcessingIndicator {
+                ProgressView()
+                    .controlSize(.small)
                 Text(getCompactProcessingStatusText())
-                    .font(.system(size: 12).monospacedDigit())
+                    .font(.caption.monospacedDigit())
                     .foregroundColor(.secondary)
                     .lineLimit(1)
-
-                Spacer(minLength: 0)
+                    .fixedSize()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemGray6))
-            .allowsHitTesting(false)
-            .accessibilityLabel(getProcessingStatusText())
-        } else {
-            EmptyView()
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            showsTitleProcessingIndicator
+                ? "\(navigationTitle) \(getProcessingStatusText())"
+                : navigationTitle
+        )
     }
 
     private func getCompactProcessingStatusText() -> String {
@@ -1011,9 +1020,6 @@ struct PhotoGridView: View {
                 // Keep both progress stages below the NavigationView toolbar.
                 // Filter / Select controls always retain their full toolbar row.
                 PhotoKitBaselineBanner()
-                if hashManager.isProcessing && photoLibraryManager.foregroundBaselineProgress == nil {
-                    processingStatusView
-                }
                 if currentFilter != .all {
                     filterIndicatorView
                 }
@@ -1155,6 +1161,7 @@ struct PhotoGridView: View {
         PhotoGridItemView(
             photoLibraryManager: photoLibraryManager,
             hashManager: hashManager,
+            uploadManager: uploadManager,
             filteredFetchSnapshot: currentFilter == .all ? nil : fetchStorage.filteredSnapshot,
             displayIndex: displayIndex,
             assetIndex: assetIndex,
@@ -2077,6 +2084,8 @@ struct PhotoGridView: View {
 private struct PhotoGridItemView: View {
     let photoLibraryManager: PhotoLibraryManager
     let hashManager: HashManager
+    /// Not observed: a cell only rebinds its own queue item when the queue changes.
+    let uploadManager: UploadManager
     let filteredFetchSnapshot: PhotoGridFetchStorage<PHFetchResult<PHAsset>>.Snapshot?
     let displayIndex: Int
     let assetIndex: Int
@@ -2098,6 +2107,7 @@ private struct PhotoGridItemView: View {
     @State private var observedAssetIdentifier: String?
     @State private var observedContentRevision: PhotoAssetContentRevision?
     @State private var syncStatus: PhotoSyncStatus = .pending
+    @State private var uploadItem: UploadItem?
     
     var body: some View {
         Group {
@@ -2113,7 +2123,8 @@ private struct PhotoGridItemView: View {
                     refreshToken: refreshToken,
                     targetSize: thumbnailTargetSize,
                     editGeneration: appliedEditGeneration,
-                    isGeometrySource: !isThisAssetSelected
+                    isGeometrySource: !isThisAssetSelected,
+                    uploadItem: uploadItem
                 )
                 // The grid can reuse the same display index after an insert or
                 // filter change. Never reuse the previous photo's @State image.
@@ -2153,6 +2164,10 @@ private struct PhotoGridItemView: View {
             // rematerializing assets in offscreen LazyVGrid state.
             if isCellActive { loadAsset() }
         }
+        // Delivered on the next run loop pass, after the queue index rebuilt.
+        .onReceive(uploadManager.$uploadQueue.receive(on: RunLoop.main)) { _ in
+            bindUploadItem()
+        }
         .onReceive(hashManager.$syncStatusCache.receive(on: RunLoop.main)) { newCache in
             guard let id = asset?.localIdentifier else { return }
             let newStatus = newCache[id] ?? .pending
@@ -2162,6 +2177,11 @@ private struct PhotoGridItemView: View {
         }
     }
     
+    private func bindUploadItem() {
+        let item = asset.flatMap { uploadManager.queueItem(for: $0.localIdentifier) }
+        if item !== uploadItem { uploadItem = item }
+    }
+
     private func loadAsset() {
         let newAsset: PHAsset?
         if let binding = filteredFetchSnapshot {
@@ -2177,6 +2197,7 @@ private struct PhotoGridItemView: View {
             newAsset = photoLibraryManager.asset(at: assetIndex)
         }
         asset = newAsset
+        bindUploadItem()
         if let id = newAsset?.localIdentifier {
             let isCurrentFetch = filteredFetchSnapshot == nil ||
                 filteredFetchSnapshot?.value === photoLibraryManager.fetchResult
