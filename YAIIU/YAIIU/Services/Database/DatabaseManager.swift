@@ -161,6 +161,12 @@ final class DatabaseManager {
     func cachedHashIdentifiers(for identifiers: [String]) -> Set<String>? {
         hashRepo.cachedHashIdentifiers(for: identifiers)
     }
+
+    /// Assets a checksum verification found missing from the server, with no
+    /// upload receipt since. See HashCacheRepository for the exact rule.
+    func verifiedNotUploadedIdentifiers(among identifiers: [String]? = nil, visibleOnly: Bool) -> [String]? {
+        hashRepo.verifiedNotUploadedIdentifiers(among: identifiers, visibleOnly: visibleOnly)
+    }
     
     func updateHashCacheServerStatus(localIdentifier: String, isOnServer: Bool, syncStatus: String = "checked") {
         hashRepo.updateHashCacheServerStatus(localIdentifier: localIdentifier, isOnServer: isOnServer)

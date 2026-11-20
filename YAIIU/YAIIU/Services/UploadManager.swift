@@ -163,7 +163,15 @@ class UploadManager: ObservableObject {
     
     private let photoLibraryManager = PhotoLibraryManager.shared
     private var uploadTask: Task<Void, Never>?
-    private var isPaused: Bool = false
+    /// True after pauseUpload() until the next start.
+    private(set) var isPaused: Bool = false
+    /// Items waiting for an upload slot in the current run, in order. Items
+    /// added while a run is active join it here instead of waiting for it to end.
+    private var pendingWork: [UploadItem] = []
+    private var pendingWorkHead = 0
+    /// Items handed to the current run's task group, which may still show
+    /// .pending or .failed while they wait for a transfer slot.
+    private var dispatchedWork = Set<ObjectIdentifier>()
     
     // Two slots for transferring bytes; separately bound the number of
     // in-flight requests waiting for Immich to acknowledge processing.
@@ -293,6 +301,9 @@ class UploadManager: ObservableObject {
         // notify observers of an increasingly large @Published collection.
         if !newItems.isEmpty {
             uploadQueue.append(contentsOf: newItems)
+            if isUploading {
+                pendingWork.append(contentsOf: newItems)
+            }
         }
         return newItems.count
     }
@@ -307,6 +318,9 @@ class UploadManager: ObservableObject {
         isUploading = true
         isPaused = false
         setIdleTimerDisabled(true)
+        pendingWork = uploadQueue.filter { $0.status != .completed }
+        pendingWorkHead = 0
+        dispatchedWork.removeAll()
         
         uploadTask = Task {
             await processUploadQueueParallel()
@@ -341,8 +355,7 @@ class UploadManager: ObservableObject {
             return
         }
         
-        let pendingItems = uploadQueue.filter { $0.status != .completed }
-        logInfo("Processing upload queue: \(pendingItems.count) items pending", category: .upload)
+        logInfo("Processing upload queue: \(pendingWork.count - pendingWorkHead) items pending", category: .upload)
         
         var successCount = 0
         var failCount = 0
@@ -350,24 +363,17 @@ class UploadManager: ObservableObject {
         let transferBudget = self.transferBudget
         await withTaskGroup(of: (UploadItem, Bool).self) { group in
             var activeCount = 0
-            var index = 0
-            let itemsToUpload = uploadQueue.filter { $0.status != .completed }
-            
-            while index < itemsToUpload.count || activeCount > 0 {
+
+            while true {
                 if isPaused {
                     logInfo("Upload paused by user", category: .upload)
                     group.cancelAll()
                     break
                 }
                 
-                while activeCount < maxInFlightUploads && index < itemsToUpload.count {
-                    if isPaused { break }
-                    
-                    let item = itemsToUpload[index]
-                    index += 1
-                    
-                    if item.status == .completed { continue }
-                    
+                // Read pendingWork live: items queued during this run start as
+                // soon as a slot frees up.
+                while activeCount < maxInFlightUploads, !isPaused, let item = nextPendingWork() {
                     activeCount += 1
                     
                     group.addTask {
@@ -410,8 +416,10 @@ class UploadManager: ObservableObject {
                     }
                 }
                 
+                guard activeCount > 0 else { break }
                 if let (item, success) = await group.next() {
                     activeCount -= 1
+                    dispatchedWork.remove(ObjectIdentifier(item))
 
                     if success {
                         successCount += 1
@@ -468,6 +476,21 @@ class UploadManager: ObservableObject {
         }
     }
     
+    /// The next queued item that is not done or already in flight.
+    private func nextPendingWork() -> UploadItem? {
+        while pendingWorkHead < pendingWork.count {
+            let item = pendingWork[pendingWorkHead]
+            pendingWorkHead += 1
+            if item.status == .pending || item.status == .failed,
+               dispatchedWork.insert(ObjectIdentifier(item)).inserted {
+                return item
+            }
+        }
+        pendingWork.removeAll(keepingCapacity: true)
+        pendingWorkHead = 0
+        return nil
+    }
+
     private func uploadItem(
         _ item: UploadItem,
         serverURL: String,
@@ -648,6 +671,7 @@ class UploadManager: ObservableObject {
             item.status = .pending
             item.progress = 0
             item.errorMessage = nil
+            if isUploading { pendingWork.append(item) }
         }
 
         if !isUploading {
@@ -666,6 +690,8 @@ class UploadManager: ObservableObject {
         uploadTask?.cancel()
         isUploading = false
         setIdleTimerDisabled(false)
+        pendingWork.removeAll()
+        pendingWorkHead = 0
         uploadQueue.removeAll()
     }
     

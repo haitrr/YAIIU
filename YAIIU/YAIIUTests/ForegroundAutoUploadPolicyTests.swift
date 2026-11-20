@@ -64,6 +64,44 @@ final class ForegroundAutoUploadPolicyTests: XCTestCase {
         XCTAssertFalse(shouldStart(isNetworkAllowed: false))
     }
 
+    // MARK: - Queuing photos known to be missing
+
+    private func canQueue(
+        isEnabled: Bool = true,
+        hasServer: Bool = true,
+        isNetworkAllowed: Bool = true,
+        isPausedByUser: Bool = false
+    ) -> Bool {
+        ForegroundAutoUploadPolicy.canQueue(
+            isEnabled: isEnabled,
+            hasServer: hasServer,
+            isNetworkAllowed: isNetworkAllowed,
+            isPausedByUser: isPausedByUser
+        )
+    }
+
+    func testQueuesWithoutWaitingForStatusOrRunningUpload() {
+        // Photos verified missing join a running upload right away.
+        XCTAssertTrue(canQueue())
+    }
+
+    func testDoesNotQueueWhenDisabledOffNetworkOrWithoutServer() {
+        XCTAssertFalse(canQueue(isEnabled: false))
+        XCTAssertFalse(canQueue(hasServer: false))
+        XCTAssertFalse(canQueue(isNetworkAllowed: false))
+    }
+
+    func testRespectsUserPause() {
+        XCTAssertFalse(canQueue(isPausedByUser: true))
+    }
+
+    func testUnattemptedKeepsOrderAndDropsDuplicates() {
+        XCTAssertEqual(
+            ForegroundAutoUploadPolicy.unattempted(["c", "a", "b", "c", "a"], excluding: ["b"]),
+            ["c", "a"]
+        )
+    }
+
     // MARK: - Network changes during an automatic session
 
     func testPausesWhenNetworkBecomesDisallowed() {

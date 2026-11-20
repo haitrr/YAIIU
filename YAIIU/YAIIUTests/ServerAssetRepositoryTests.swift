@@ -557,6 +557,60 @@ final class ServerAssetRepositoryTests: XCTestCase {
 
     // MARK: - Persistent Local PhotoKit Inventory
 
+    func testVerifiedNotUploadedExcludesUncheckedUploadedAndReceiptBackedAssets() {
+        execute("""
+            INSERT INTO hash_cache
+              (asset_id, sha1_hash, calculated_at, checked_at, is_on_server, has_raw, raw_on_server)
+            VALUES ('unchecked', 'x', 0, NULL, 0, 0, 0),
+                   ('missing', 'x', 0, 1, 0, 0, 0),
+                   ('on-server', 'x', 0, 1, 1, 0, 0),
+                   ('receipt', 'x', 0, 1, 0, 0, 0),
+                   ('live-receipt-only', 'x', 0, 1, 0, 0, 0),
+                   ('raw-half', 'x', 0, 1, 1, 1, 0),
+                   ('raw-done', 'x', 0, 1, 1, 1, 1),
+                   ('raw-receipt', 'x', 0, 1, 1, 1, 0);
+            INSERT INTO uploaded_assets (asset_id, resource_type, filename, immich_id, uploaded_at)
+            VALUES ('receipt', 'primary', 'a.jpg', 'r1', 10),
+                   ('live-receipt-only', 'live_video', 'a.mov', 'r2', 10),
+                   ('raw-receipt', 'raw', 'a.dng', 'r3', 10);
+            """)
+        // An unchecked hash is unknown, not missing; a Live Photo clip alone
+        // does not stand in for its still; a RAW pair needs both resources.
+        XCTAssertEqual(
+            Set(hashRepository.verifiedNotUploadedIdentifiers(among: nil, visibleOnly: false) ?? []),
+            ["missing", "live-receipt-only", "raw-half"]
+        )
+        XCTAssertEqual(
+            hashRepository.verifiedNotUploadedIdentifiers(among: ["missing", "on-server", "absent"], visibleOnly: false),
+            ["missing"]
+        )
+        XCTAssertEqual(hashRepository.verifiedNotUploadedIdentifiers(among: [], visibleOnly: false), [])
+    }
+
+    func testVerifiedNotUploadedVisibleOnlySkipsHiddenOnceInventoryIsReady() {
+        execute("""
+            INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at, checked_at, is_on_server)
+            VALUES ('visible', 'x', 0, 1, 0), ('hidden', 'x', 0, 1, 0);
+            """)
+        // Without a completed inventory, hidden state is unknown; PhotoKit's
+        // default fetch drops hidden assets later.
+        XCTAssertEqual(
+            Set(hashRepository.verifiedNotUploadedIdentifiers(among: nil, visibleOnly: true) ?? []),
+            ["visible", "hidden"]
+        )
+        XCTAssertTrue(hashRepository.beginLocalPhotoInventoryBootstrap())
+        XCTAssertTrue(hashRepository.appendLocalPhotoInventoryBatch([
+            (identifier: "visible", isHidden: false),
+            (identifier: "hidden", isHidden: true)
+        ]))
+        XCTAssertTrue(hashRepository.finishLocalPhotoInventoryBootstrap())
+        XCTAssertEqual(hashRepository.verifiedNotUploadedIdentifiers(among: nil, visibleOnly: true), ["visible"])
+        XCTAssertEqual(
+            Set(hashRepository.verifiedNotUploadedIdentifiers(among: nil, visibleOnly: false) ?? []),
+            ["visible", "hidden"]
+        )
+    }
+
     func testLocalPhotoCountRequiresCompletedBaseline() {
         XCTAssertFalse(hashRepository.isLocalPhotoInventoryReady())
         XCTAssertNil(hashRepository.countNotUploadedVisibleAssets())
