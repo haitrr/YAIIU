@@ -83,6 +83,8 @@
 		ST0000010000000000000001 /* CoalescingRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ST0000020000000000000001 /* CoalescingRefreshTests.swift */; };
 		FT0000010000000000000001 /* FavoriteChangeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FT0000020000000000000001 /* FavoriteChangeDetectorTests.swift */; };
 		SC0000010000000000000001 /* PhotoLibraryStatusCount.swift in Sources */ = {isa = PBXBuildFile; fileRef = SC0000020000000000000001 /* PhotoLibraryStatusCount.swift */; };
+		US0000010000000000000001 /* UploadStatusSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = US0000020000000000000001 /* UploadStatusSummary.swift */; };
+		US0000030000000000000001 /* UploadScreenStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = US0000040000000000000001 /* UploadScreenStatusTests.swift */; };
 		FA0000010000000000000001 /* ForegroundAutoUploadPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000020000000000000001 /* ForegroundAutoUploadPolicy.swift */; };
 		FA0000050000000000000001 /* ForegroundAutoUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000060000000000000001 /* ForegroundAutoUploader.swift */; };
 		FA0000030000000000000001 /* ForegroundAutoUploadPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000040000000000000001 /* ForegroundAutoUploadPolicyTests.swift */; };
@@ -210,6 +212,8 @@
 		ST0000020000000000000001 /* CoalescingRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoalescingRefreshTests.swift; sourceTree = "<group>"; };
 		FT0000020000000000000001 /* FavoriteChangeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoriteChangeDetectorTests.swift; sourceTree = "<group>"; };
 		SC0000020000000000000001 /* PhotoLibraryStatusCount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryStatusCount.swift; sourceTree = "<group>"; };
+		US0000020000000000000001 /* UploadStatusSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadStatusSummary.swift; sourceTree = "<group>"; };
+		US0000040000000000000001 /* UploadScreenStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadScreenStatusTests.swift; sourceTree = "<group>"; };
 		FA0000020000000000000001 /* ForegroundAutoUploadPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundAutoUploadPolicy.swift; sourceTree = "<group>"; };
 		FA0000060000000000000001 /* ForegroundAutoUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundAutoUploader.swift; sourceTree = "<group>"; };
 		FA0000040000000000000001 /* ForegroundAutoUploadPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForegroundAutoUploadPolicyTests.swift; sourceTree = "<group>"; };
@@ -328,6 +332,7 @@
 				2A0000100000000000000001 /* PhotoLibraryManager.swift */,
 				PE0000020000000000000001 /* PhotoLibraryEnumeration.swift */,
 				SC0000020000000000000001 /* PhotoLibraryStatusCount.swift */,
+				US0000020000000000000001 /* UploadStatusSummary.swift */,
 				FA0000020000000000000001 /* ForegroundAutoUploadPolicy.swift */,
 				FA0000060000000000000001 /* ForegroundAutoUploader.swift */,
 				FC0000020000000000000001 /* FavoriteChangeDetector.swift */,
@@ -451,6 +456,7 @@
 				TS0000170000000000000001 /* HashPipelinePolicyTests.swift */,
 				PT0000020000000000000001 /* PhotoLibraryEnumerationTests.swift */,
 				CT0000020000000000000001 /* PhotoLibraryStatusCountTests.swift */,
+				US0000040000000000000001 /* UploadScreenStatusTests.swift */,
 				FA0000040000000000000001 /* ForegroundAutoUploadPolicyTests.swift */,
 				FT0000020000000000000001 /* FavoriteChangeDetectorTests.swift */,
 				ST0000020000000000000001 /* CoalescingRefreshTests.swift */,
@@ -607,6 +613,7 @@
 				2A00000F0000000000000001 /* PhotoLibraryManager.swift in Sources */,
 				PE0000010000000000000001 /* PhotoLibraryEnumeration.swift in Sources */,
 				SC0000010000000000000001 /* PhotoLibraryStatusCount.swift in Sources */,
+				US0000010000000000000001 /* UploadStatusSummary.swift in Sources */,
 				FA0000010000000000000001 /* ForegroundAutoUploadPolicy.swift in Sources */,
 				FA0000050000000000000001 /* ForegroundAutoUploader.swift in Sources */,
 				FC0000010000000000000001 /* FavoriteChangeDetector.swift in Sources */,
@@ -680,6 +687,7 @@
 				TS0000160000000000000001 /* HashPipelinePolicyTests.swift in Sources */,
 				PT0000010000000000000001 /* PhotoLibraryEnumerationTests.swift in Sources */,
 				CT0000010000000000000001 /* PhotoLibraryStatusCountTests.swift in Sources */,
+				US0000030000000000000001 /* UploadScreenStatusTests.swift in Sources */,
 				FA0000030000000000000001 /* ForegroundAutoUploadPolicyTests.swift in Sources */,
 				FT0000010000000000000001 /* FavoriteChangeDetectorTests.swift in Sources */,
 				ST0000010000000000000001 /* CoalescingRefreshTests.swift in Sources */,

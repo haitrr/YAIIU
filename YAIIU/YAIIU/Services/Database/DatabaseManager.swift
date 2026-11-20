@@ -76,6 +76,14 @@ final class DatabaseManager {
         uploadRepo.getUploadRecords(for: localIdentifier)
     }
 
+    func recentUploadsAsync(limit: Int, completion: @escaping ([RecentUpload]) -> Void) {
+        let repo = uploadRepo
+        DispatchQueue.global(qos: .utility).async {
+            let uploads = repo.recentUploads(limit: limit)
+            DispatchQueue.main.async { completion(uploads) }
+        }
+    }
+
     func getAllUploadedAssetMappings() -> [(localIdentifier: String, immichId: String)] {
         uploadRepo.getAllUploadedAssetMappings()
     }

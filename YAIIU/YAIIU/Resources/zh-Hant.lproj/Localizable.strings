@@ -148,15 +148,33 @@
 "uploadProgress.title" = "上傳進度";
 "uploadProgress.pause" = "暫停";
 "uploadProgress.resume" = "繼續";
-"uploadProgress.empty.title" = "沒有正在上傳的項目";
-"uploadProgress.empty.message" = "選擇照片後點擊上傳即可開始";
-"uploadProgress.empty.success" = "已成功上傳 %d 個項目";
 "uploadProgress.overall" = "上傳進度";
 "uploadProgress.uploading" = "上傳中...";
 "uploadProgress.paused" = "已暫停";
 "uploadProgress.files" = "(%d/%d 檔案)";
 "uploadProgress.fileCount" = "%d 檔";
 "uploadProgress.video" = "影片";
+"uploadProgress.section.current" = "目前上傳";
+"uploadProgress.section.library" = "圖庫";
+"uploadProgress.section.recent" = "最近上傳";
+"uploadProgress.recent.empty" = "尚未上傳任何內容";
+"uploadProgress.loading" = "正在載入狀態…";
+"uploadProgress.retryFailed" = "重試失敗項目";
+"uploadProgress.stage.uploading" = "正在上傳";
+"uploadProgress.stage.failed" = "上傳失敗";
+"uploadProgress.stage.queued" = "排隊中";
+"uploadProgress.stage.uploaded" = "已上傳";
+"uploadProgress.stage.waitingForHash" = "等待雜湊";
+"uploadProgress.stage.checkingServer" = "正在檢查伺服器";
+"uploadProgress.stage.notUploaded" = "未上傳";
+"uploadProgress.stage.hashError" = "雜湊錯誤";
+"uploadProgress.hint.waitingForHash" = "尚未計算雜湊";
+"uploadProgress.hint.checkingServer" = "已計算雜湊，尚未與伺服器核對";
+"uploadProgress.hint.notUploaded" = "不在伺服器上，也未排隊";
+"uploadProgress.hashing" = "正在計算雜湊 %d/%d";
+"uploadProgress.stage.empty" = "沒有照片";
+"uploadProgress.duplicate" = "伺服器上已存在";
+"uploadProgress.photoCount" = "%d 張照片";
 
 // MARK: - Upload Item Status
 "uploadStatus.pending" = "等待中";

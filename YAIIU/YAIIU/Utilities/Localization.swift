@@ -304,11 +304,6 @@ enum L10n {
         static var title: String { "uploadProgress.title".localized }
         static var pause: String { "uploadProgress.pause".localized }
         static var resume: String { "uploadProgress.resume".localized }
-        static var emptyTitle: String { "uploadProgress.empty.title".localized }
-        static var emptyMessage: String { "uploadProgress.empty.message".localized }
-        static func emptySuccess(_ count: Int) -> String {
-            return "uploadProgress.empty.success".localized(with: count)
-        }
         static var overall: String { "uploadProgress.overall".localized }
         static var uploading: String { "uploadProgress.uploading".localized }
         static var paused: String { "uploadProgress.paused".localized }
@@ -319,6 +314,40 @@ enum L10n {
             return "uploadProgress.fileCount".localized(with: count)
         }
         static var video: String { "uploadProgress.video".localized }
+        static var sectionCurrent: String { "uploadProgress.section.current".localized }
+        static var sectionLibrary: String { "uploadProgress.section.library".localized }
+        static var sectionRecent: String { "uploadProgress.section.recent".localized }
+        static var recentEmpty: String { "uploadProgress.recent.empty".localized }
+        static var loading: String { "uploadProgress.loading".localized }
+        static var retryFailed: String { "uploadProgress.retryFailed".localized }
+        static var stageEmpty: String { "uploadProgress.stage.empty".localized }
+        static var duplicate: String { "uploadProgress.duplicate".localized }
+        static func hashing(_ done: Int, _ total: Int) -> String {
+            return "uploadProgress.hashing".localized(with: done, total)
+        }
+        static func photoCount(_ count: Int) -> String {
+            return "uploadProgress.photoCount".localized(with: count)
+        }
+        static func stage(_ stage: UploadStage) -> String {
+            switch stage {
+            case .uploading: return "uploadProgress.stage.uploading".localized
+            case .failed: return "uploadProgress.stage.failed".localized
+            case .queued: return "uploadProgress.stage.queued".localized
+            case .uploaded: return "uploadProgress.stage.uploaded".localized
+            case .waitingForHash: return "uploadProgress.stage.waitingForHash".localized
+            case .checkingServer: return "uploadProgress.stage.checkingServer".localized
+            case .notUploaded: return "uploadProgress.stage.notUploaded".localized
+            case .hashError: return "uploadProgress.stage.hashError".localized
+            }
+        }
+        static func stageHint(_ stage: UploadStage) -> String? {
+            switch stage {
+            case .waitingForHash: return "uploadProgress.hint.waitingForHash".localized
+            case .checkingServer: return "uploadProgress.hint.checkingServer".localized
+            case .notUploaded: return "uploadProgress.hint.notUploaded".localized
+            default: return nil
+            }
+        }
     }
     
     // MARK: - Upload Status

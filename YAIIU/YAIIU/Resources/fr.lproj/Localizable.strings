@@ -147,15 +147,33 @@
 "uploadProgress.title" = "Progression du téléversement";
 "uploadProgress.pause" = "Pause";
 "uploadProgress.resume" = "Reprendre";
-"uploadProgress.empty.title" = "Aucun élément en cours de téléversement";
-"uploadProgress.empty.message" = "Sélectionnez des photos et appuyez sur téléverser pour commencer";
-"uploadProgress.empty.success" = "%d éléments téléversés avec succès";
 "uploadProgress.overall" = "Progression du téléversement";
 "uploadProgress.uploading" = "Téléversement en cours...";
 "uploadProgress.paused" = "En pause";
 "uploadProgress.files" = "(%d/%d fichiers)";
 "uploadProgress.fileCount" = "%d fichiers";
 "uploadProgress.video" = "Vidéo";
+"uploadProgress.section.current" = "Téléversement en cours";
+"uploadProgress.section.library" = "Photothèque";
+"uploadProgress.section.recent" = "Téléversés récemment";
+"uploadProgress.recent.empty" = "Rien n’a encore été téléversé";
+"uploadProgress.loading" = "Chargement de l’état…";
+"uploadProgress.retryFailed" = "Réessayer les échecs";
+"uploadProgress.stage.uploading" = "En cours de téléversement";
+"uploadProgress.stage.failed" = "Échec du téléversement";
+"uploadProgress.stage.queued" = "En file d’attente";
+"uploadProgress.stage.uploaded" = "Téléversé";
+"uploadProgress.stage.waitingForHash" = "En attente de hachage";
+"uploadProgress.stage.checkingServer" = "Vérification serveur";
+"uploadProgress.stage.notUploaded" = "Non téléversé";
+"uploadProgress.stage.hashError" = "Erreur de hachage";
+"uploadProgress.hint.waitingForHash" = "Pas encore haché";
+"uploadProgress.hint.checkingServer" = "Haché, pas encore vérifié sur le serveur";
+"uploadProgress.hint.notUploaded" = "Absent du serveur et pas en file d’attente";
+"uploadProgress.hashing" = "Hachage %d/%d";
+"uploadProgress.stage.empty" = "Aucune photo";
+"uploadProgress.duplicate" = "Déjà sur le serveur";
+"uploadProgress.photoCount" = "%d photos";
 
 // MARK: - Upload Item Status
 "uploadStatus.pending" = "En attente";

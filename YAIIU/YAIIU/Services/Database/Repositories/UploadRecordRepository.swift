@@ -86,7 +86,8 @@ final class UploadRecordRepository {
         immichId: String,
         fileSize: Int64 = 0,
         isDuplicate: Bool = false,
-        isFavorite: Bool = false
+        isFavorite: Bool = false,
+        uploadedAt: Date = Date()
     ) {
         connection.ensureInitialized()
         logDebug("Recording uploaded asset: \(filename) (type: \(resourceType), immichId: \(immichId), favorite: \(isFavorite))", category: .database)
@@ -100,7 +101,8 @@ final class UploadRecordRepository {
                 immichId: immichId,
                 fileSize: fileSize,
                 isDuplicate: isDuplicate,
-                isFavorite: isFavorite
+                isFavorite: isFavorite,
+                uploadedAt: uploadedAt
             )
         }
     }
@@ -112,7 +114,8 @@ final class UploadRecordRepository {
         immichId: String,
         fileSize: Int64,
         isDuplicate: Bool,
-        isFavorite: Bool
+        isFavorite: Bool,
+        uploadedAt: Date
     ) {
         let sql = """
         INSERT OR REPLACE INTO uploaded_assets
@@ -130,7 +133,7 @@ final class UploadRecordRepository {
             sqlite3_bind_int64(statement, 5, fileSize)
             sqlite3_bind_int(statement, 6, isDuplicate ? 1 : 0)
             sqlite3_bind_int(statement, 7, isFavorite ? 1 : 0)
-            sqlite3_bind_double(statement, 8, Date().timeIntervalSince1970)
+            sqlite3_bind_double(statement, 8, uploadedAt.timeIntervalSince1970)
             
             if sqlite3_step(statement) != SQLITE_DONE {
                 logError("Failed to record uploaded asset: \(connection.lastErrorMessage)", category: .database)
@@ -268,6 +271,58 @@ final class UploadRecordRepository {
         return records
     }
     
+    // MARK: - History
+
+    /// Newest uploads first, one entry per photo, across foreground and
+    /// background-extension uploads (both write `uploaded_assets`).
+    func recentUploads(limit: Int) -> [RecentUpload] {
+        connection.ensureInitialized()
+        return connection.dbQueue.sync { recentUploadsInternal(limit: limit) }
+    }
+
+    private func recentUploadsInternal(limit: Int) -> [RecentUpload] {
+        let sql = """
+        SELECT asset_id, MAX(uploaded_at), MIN(is_duplicate),
+               GROUP_CONCAT(resource_type, char(31)), GROUP_CONCAT(filename, char(31))
+        FROM uploaded_assets
+        GROUP BY asset_id
+        ORDER BY MAX(uploaded_at) DESC
+        LIMIT ?;
+        """
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(connection.db, sql, -1, &statement, nil) == SQLITE_OK else {
+            logError("Failed to prepare recentUploads: \(connection.lastErrorMessage)", category: .database)
+            return []
+        }
+        sqlite3_bind_int(statement, 1, Int32(clamping: limit))
+
+        let separator = Character(UnicodeScalar(31))
+        func column(_ index: Int32) -> [String] {
+            guard let text = sqlite3_column_text(statement, index) else { return [] }
+            return String(cString: text).split(separator: separator, omittingEmptySubsequences: false).map(String.init)
+        }
+
+        var uploads: [RecentUpload] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            guard let id = sqlite3_column_text(statement, 0) else { continue }
+            let types = column(3)
+            let filenames = column(4)
+            // GROUP_CONCAT keeps both columns in the same row order.
+            let primaryIndex = types.firstIndex { $0 != "raw" && $0 != LivePhotoResourcePolicy.resourceType }
+            let filename = primaryIndex.flatMap { $0 < filenames.count ? filenames[$0] : nil }
+                ?? filenames.first ?? ""
+            uploads.append(RecentUpload(
+                localIdentifier: String(cString: id),
+                filename: filename,
+                resourceTypes: types.sorted(),
+                uploadedAt: Date(timeIntervalSince1970: sqlite3_column_double(statement, 1)),
+                isDuplicate: sqlite3_column_int(statement, 2) == 1
+            ))
+        }
+        return uploads
+    }
+
     // MARK: - Delete Methods
     
     func deleteUploadRecord(for localIdentifier: String) {

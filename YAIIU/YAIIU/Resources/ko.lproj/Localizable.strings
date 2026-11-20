@@ -147,15 +147,33 @@
 "uploadProgress.title" = "업로드 진행";
 "uploadProgress.pause" = "일시 정지";
 "uploadProgress.resume" = "재개";
-"uploadProgress.empty.title" = "업로드 중인 항목 없음";
-"uploadProgress.empty.message" = "사진을 선택하고 업로드를 탭하여 시작하세요";
-"uploadProgress.empty.success" = "%d개 항목 업로드 완료";
 "uploadProgress.overall" = "업로드 진행";
 "uploadProgress.uploading" = "업로드 중...";
 "uploadProgress.paused" = "일시 정지됨";
 "uploadProgress.files" = "(%d/%d 파일)";
 "uploadProgress.fileCount" = "%d개 파일";
 "uploadProgress.video" = "동영상";
+"uploadProgress.section.current" = "현재 업로드";
+"uploadProgress.section.library" = "라이브러리";
+"uploadProgress.section.recent" = "최근 업로드";
+"uploadProgress.recent.empty" = "아직 업로드된 항목 없음";
+"uploadProgress.loading" = "상태 불러오는 중…";
+"uploadProgress.retryFailed" = "실패 항목 재시도";
+"uploadProgress.stage.uploading" = "업로드 중";
+"uploadProgress.stage.failed" = "업로드 실패";
+"uploadProgress.stage.queued" = "대기 중";
+"uploadProgress.stage.uploaded" = "업로드됨";
+"uploadProgress.stage.waitingForHash" = "해시 대기";
+"uploadProgress.stage.checkingServer" = "서버 확인 중";
+"uploadProgress.stage.notUploaded" = "업로드 안 됨";
+"uploadProgress.stage.hashError" = "해시 오류";
+"uploadProgress.hint.waitingForHash" = "아직 해시되지 않음";
+"uploadProgress.hint.checkingServer" = "해시됨, 서버 확인 전";
+"uploadProgress.hint.notUploaded" = "서버에 없고 대기열에도 없음";
+"uploadProgress.hashing" = "해시 계산 중 %d/%d";
+"uploadProgress.stage.empty" = "사진 없음";
+"uploadProgress.duplicate" = "서버에 이미 있음";
+"uploadProgress.photoCount" = "사진 %d장";
 
 // MARK: - Upload Item Status
 "uploadStatus.pending" = "대기 중";

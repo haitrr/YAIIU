@@ -147,15 +147,33 @@
 "uploadProgress.title" = "アップロード進捗";
 "uploadProgress.pause" = "一時停止";
 "uploadProgress.resume" = "再開";
-"uploadProgress.empty.title" = "アップロード中の項目はありません";
-"uploadProgress.empty.message" = "写真を選択してアップロードをタップして開始";
-"uploadProgress.empty.success" = "%d件のアップロードが完了しました";
 "uploadProgress.overall" = "アップロード進捗";
 "uploadProgress.uploading" = "アップロード中...";
 "uploadProgress.paused" = "一時停止中";
 "uploadProgress.files" = "(%d/%dファイル)";
 "uploadProgress.fileCount" = "%dファイル";
 "uploadProgress.video" = "動画";
+"uploadProgress.section.current" = "現在のアップロード";
+"uploadProgress.section.library" = "ライブラリ";
+"uploadProgress.section.recent" = "最近アップロード";
+"uploadProgress.recent.empty" = "まだアップロードされていません";
+"uploadProgress.loading" = "状態を読み込み中…";
+"uploadProgress.retryFailed" = "失敗分を再試行";
+"uploadProgress.stage.uploading" = "アップロード中";
+"uploadProgress.stage.failed" = "アップロード失敗";
+"uploadProgress.stage.queued" = "待機中";
+"uploadProgress.stage.uploaded" = "アップロード済み";
+"uploadProgress.stage.waitingForHash" = "ハッシュ待ち";
+"uploadProgress.stage.checkingServer" = "サーバー確認中";
+"uploadProgress.stage.notUploaded" = "未アップロード";
+"uploadProgress.stage.hashError" = "ハッシュエラー";
+"uploadProgress.hint.waitingForHash" = "まだハッシュされていません";
+"uploadProgress.hint.checkingServer" = "ハッシュ済み、サーバー未確認";
+"uploadProgress.hint.notUploaded" = "サーバーになく、待機列にもありません";
+"uploadProgress.hashing" = "ハッシュ計算中 %d/%d";
+"uploadProgress.stage.empty" = "写真はありません";
+"uploadProgress.duplicate" = "サーバーに既存";
+"uploadProgress.photoCount" = "%d枚";
 
 // MARK: - Upload Item Status
 "uploadStatus.pending" = "待機中";

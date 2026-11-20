@@ -147,15 +147,33 @@
 "uploadProgress.title" = "Upload-Fortschritt";
 "uploadProgress.pause" = "Pausieren";
 "uploadProgress.resume" = "Fortsetzen";
-"uploadProgress.empty.title" = "Keine Elemente werden hochgeladen";
-"uploadProgress.empty.message" = "Wählen Sie Fotos aus und tippen Sie auf Hochladen, um zu beginnen";
-"uploadProgress.empty.success" = "%d Elemente erfolgreich hochgeladen";
 "uploadProgress.overall" = "Upload-Fortschritt";
 "uploadProgress.uploading" = "Wird hochgeladen...";
 "uploadProgress.paused" = "Pausiert";
 "uploadProgress.files" = "(%d/%d Dateien)";
 "uploadProgress.fileCount" = "%d Dateien";
 "uploadProgress.video" = "Video";
+"uploadProgress.section.current" = "Aktueller Upload";
+"uploadProgress.section.library" = "Mediathek";
+"uploadProgress.section.recent" = "Zuletzt hochgeladen";
+"uploadProgress.recent.empty" = "Noch nichts hochgeladen";
+"uploadProgress.loading" = "Status wird geladen…";
+"uploadProgress.retryFailed" = "Fehlgeschlagene wiederholen";
+"uploadProgress.stage.uploading" = "Wird hochgeladen";
+"uploadProgress.stage.failed" = "Upload fehlgeschlagen";
+"uploadProgress.stage.queued" = "In Warteschlange";
+"uploadProgress.stage.uploaded" = "Hochgeladen";
+"uploadProgress.stage.waitingForHash" = "Wartet auf Hash";
+"uploadProgress.stage.checkingServer" = "Server-Prüfung";
+"uploadProgress.stage.notUploaded" = "Nicht hochgeladen";
+"uploadProgress.stage.hashError" = "Hash-Fehler";
+"uploadProgress.hint.waitingForHash" = "Noch nicht gehasht";
+"uploadProgress.hint.checkingServer" = "Gehasht, noch nicht mit dem Server abgeglichen";
+"uploadProgress.hint.notUploaded" = "Nicht auf dem Server und nicht in der Warteschlange";
+"uploadProgress.hashing" = "Hashen %d/%d";
+"uploadProgress.stage.empty" = "Keine Fotos";
+"uploadProgress.duplicate" = "Bereits auf dem Server";
+"uploadProgress.photoCount" = "%d Fotos";
 
 // MARK: - Upload Item Status
 "uploadStatus.pending" = "Ausstehend";
