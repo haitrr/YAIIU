@@ -11,6 +11,17 @@ struct UploadRecord {
     let isDuplicate: Bool
 }
 
+/// One photo's upload receipt for the Upload tab's history list.
+struct RecentUpload: Equatable, Identifiable {
+    let localIdentifier: String
+    let filename: String
+    let resourceTypes: [String]
+    let uploadedAt: Date
+    let isDuplicate: Bool
+
+    var id: String { localIdentifier }
+}
+
 struct HashCacheRecord {
     let id: Int
     let localIdentifier: String
