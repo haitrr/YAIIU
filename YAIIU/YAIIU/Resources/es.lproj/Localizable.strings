@@ -147,15 +147,33 @@
 "uploadProgress.title" = "Progreso de subida";
 "uploadProgress.pause" = "Pausar";
 "uploadProgress.resume" = "Reanudar";
-"uploadProgress.empty.title" = "No hay elementos subiendo";
-"uploadProgress.empty.message" = "Selecciona fotos y toca subir para comenzar";
-"uploadProgress.empty.success" = "Se subieron %d elementos correctamente";
 "uploadProgress.overall" = "Progreso de subida";
 "uploadProgress.uploading" = "Subiendo...";
 "uploadProgress.paused" = "Pausado";
 "uploadProgress.files" = "(%d/%d archivos)";
 "uploadProgress.fileCount" = "%d archivos";
 "uploadProgress.video" = "Vídeo";
+"uploadProgress.section.current" = "Subida actual";
+"uploadProgress.section.library" = "Biblioteca";
+"uploadProgress.section.recent" = "Subidas recientes";
+"uploadProgress.recent.empty" = "Aún no se ha subido nada";
+"uploadProgress.loading" = "Cargando estado…";
+"uploadProgress.retryFailed" = "Reintentar fallidos";
+"uploadProgress.stage.uploading" = "Subiendo ahora";
+"uploadProgress.stage.failed" = "Subida fallida";
+"uploadProgress.stage.queued" = "En cola";
+"uploadProgress.stage.uploaded" = "Subido";
+"uploadProgress.stage.waitingForHash" = "Esperando hash";
+"uploadProgress.stage.checkingServer" = "Comprobando servidor";
+"uploadProgress.stage.notUploaded" = "No subido";
+"uploadProgress.stage.hashError" = "Error de hash";
+"uploadProgress.hint.waitingForHash" = "Aún sin hash";
+"uploadProgress.hint.checkingServer" = "Con hash, aún sin comprobar en el servidor";
+"uploadProgress.hint.notUploaded" = "No está en el servidor ni en cola";
+"uploadProgress.hashing" = "Calculando hash %d/%d";
+"uploadProgress.stage.empty" = "No hay fotos";
+"uploadProgress.duplicate" = "Ya en el servidor";
+"uploadProgress.photoCount" = "%d fotos";
 
 // MARK: - Upload Item Status
 "uploadStatus.pending" = "Pendiente";

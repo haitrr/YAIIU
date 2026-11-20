@@ -148,15 +148,33 @@
 "uploadProgress.title" = "Upload Progress";
 "uploadProgress.pause" = "Pause";
 "uploadProgress.resume" = "Resume";
-"uploadProgress.empty.title" = "No Items Uploading";
-"uploadProgress.empty.message" = "Select photos and tap upload to start";
-"uploadProgress.empty.success" = "Successfully uploaded %d items";
 "uploadProgress.overall" = "Upload Progress";
 "uploadProgress.uploading" = "Uploading...";
 "uploadProgress.paused" = "Paused";
 "uploadProgress.files" = "(%d/%d files)";
 "uploadProgress.fileCount" = "%d files";
 "uploadProgress.video" = "Video";
+"uploadProgress.section.current" = "Current Upload";
+"uploadProgress.section.library" = "Library";
+"uploadProgress.section.recent" = "Recently Uploaded";
+"uploadProgress.recent.empty" = "Nothing uploaded yet";
+"uploadProgress.loading" = "Loading status…";
+"uploadProgress.retryFailed" = "Retry Failed";
+"uploadProgress.stage.uploading" = "Uploading Now";
+"uploadProgress.stage.failed" = "Upload Failed";
+"uploadProgress.stage.queued" = "Queued";
+"uploadProgress.stage.uploaded" = "Uploaded";
+"uploadProgress.stage.waitingForHash" = "Waiting for Hash";
+"uploadProgress.stage.checkingServer" = "Checking Server";
+"uploadProgress.stage.notUploaded" = "Not Uploaded";
+"uploadProgress.stage.hashError" = "Hash Error";
+"uploadProgress.hint.waitingForHash" = "Not hashed yet";
+"uploadProgress.hint.checkingServer" = "Hashed, not yet checked against the server";
+"uploadProgress.hint.notUploaded" = "Not on the server and not queued";
+"uploadProgress.hashing" = "Hashing %d/%d";
+"uploadProgress.stage.empty" = "No photos here";
+"uploadProgress.duplicate" = "Already on server";
+"uploadProgress.photoCount" = "%d photos";
 
 // MARK: - Upload Item Status
 "uploadStatus.pending" = "Pending";

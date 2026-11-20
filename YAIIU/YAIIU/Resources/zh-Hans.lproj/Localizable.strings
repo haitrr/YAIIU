@@ -147,15 +147,33 @@
 "uploadProgress.title" = "上传进度";
 "uploadProgress.pause" = "暂停";
 "uploadProgress.resume" = "继续";
-"uploadProgress.empty.title" = "没有正在上传的项目";
-"uploadProgress.empty.message" = "选择照片后点击上传即可开始";
-"uploadProgress.empty.success" = "已成功上传 %d 个项目";
 "uploadProgress.overall" = "上传进度";
 "uploadProgress.uploading" = "上传中...";
 "uploadProgress.paused" = "已暂停";
 "uploadProgress.files" = "(%d/%d 文件)";
 "uploadProgress.fileCount" = "%d 个文件";
 "uploadProgress.video" = "视频";
+"uploadProgress.section.current" = "当前上传";
+"uploadProgress.section.library" = "图库";
+"uploadProgress.section.recent" = "最近上传";
+"uploadProgress.recent.empty" = "尚未上传任何内容";
+"uploadProgress.loading" = "正在加载状态…";
+"uploadProgress.retryFailed" = "重试失败项";
+"uploadProgress.stage.uploading" = "正在上传";
+"uploadProgress.stage.failed" = "上传失败";
+"uploadProgress.stage.queued" = "排队中";
+"uploadProgress.stage.uploaded" = "已上传";
+"uploadProgress.stage.waitingForHash" = "等待哈希";
+"uploadProgress.stage.checkingServer" = "正在检查服务器";
+"uploadProgress.stage.notUploaded" = "未上传";
+"uploadProgress.stage.hashError" = "哈希错误";
+"uploadProgress.hint.waitingForHash" = "尚未计算哈希";
+"uploadProgress.hint.checkingServer" = "已计算哈希，尚未与服务器核对";
+"uploadProgress.hint.notUploaded" = "不在服务器上，也未排队";
+"uploadProgress.hashing" = "正在计算哈希 %d/%d";
+"uploadProgress.stage.empty" = "没有照片";
+"uploadProgress.duplicate" = "服务器上已存在";
+"uploadProgress.photoCount" = "%d 张照片";
 
 // MARK: - Upload Item Status
 "uploadStatus.pending" = "等待中";
