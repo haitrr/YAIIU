@@ -128,6 +128,8 @@ struct PhotoThumbnailView: View {
     /// When true, this view is the source of the matched geometry effect.
     /// Set to false when the detail view is showing to avoid duplicate sources.
     let isGeometrySource: Bool
+    /// Live upload queue entry; while present it replaces the hash status.
+    var uploadItem: UploadItem? = nil
     
     @State private var thumbnail: UIImage?
     @State private var hasRAW: Bool = false
@@ -174,7 +176,8 @@ struct PhotoThumbnailView: View {
         self.isGeometrySource = isGeometrySource
     }
     
-    init(asset: PHAsset, isSelected: Bool, isSelectionMode: Bool, syncStatus: PhotoSyncStatus, namespace: Namespace.ID?, refreshToken: UUID?, targetSize: CGSize = ThumbnailCache.defaultTargetSize, editGeneration: Int? = nil, isGeometrySource: Bool = true) {
+    init(asset: PHAsset, isSelected: Bool, isSelectionMode: Bool, syncStatus: PhotoSyncStatus, namespace: Namespace.ID?, refreshToken: UUID?, targetSize: CGSize = ThumbnailCache.defaultTargetSize, editGeneration: Int? = nil, isGeometrySource: Bool = true, uploadItem: UploadItem? = nil) {
+        self.uploadItem = uploadItem
         self.asset = asset
         self.isSelected = isSelected
         self.isSelectionMode = isSelectionMode
@@ -241,7 +244,11 @@ struct PhotoThumbnailView: View {
                 }
                 
                 // Sync Status Badge
-                syncStatusBadge
+                if let uploadItem {
+                    UploadProgressBadge(item: uploadItem)
+                } else {
+                    syncStatusBadge
+                }
                 
                 // Selection Indicator
                 if isSelectionMode {
@@ -298,6 +305,13 @@ struct PhotoThumbnailView: View {
         }
     }
     
+    private var isStatusUnknown: Bool {
+        switch syncStatus {
+        case .pending, .processing, .checking: return true
+        default: return false
+        }
+    }
+
     @ViewBuilder
     private var syncStatusBadge: some View {
         VStack {
@@ -305,27 +319,25 @@ struct PhotoThumbnailView: View {
             HStack {
                 Spacer()
                 ZStack {
+                    // Not-yet-known statuses get a dim chip, never a cloud, so
+                    // they can't be read as "on the server".
                     Circle()
-                        .fill(Color.white)
+                        .fill(isStatusUnknown ? Color.black.opacity(0.45) : Color.white)
                         .frame(width: 22, height: 22)
-                    
+
                     switch syncStatus {
                     case .pending:
-                        Image(systemName: "cloud")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gray)
-                    
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .accessibilityLabel(L10n.UploadProgress.stage(.waitingForHash))
+
                     case .processing, .checking:
-                        ZStack {
-                            Image(systemName: "cloud")
-                                .font(.system(size: 12))
-                                .foregroundColor(.blue)
-                            
-                            ProgressView()
-                                .scaleEffect(0.5)
-                                .offset(y: 1)
-                        }
-                    
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.6)
+                            .accessibilityLabel(L10n.UploadProgress.stage(.checkingServer))
+
                     case .notUploaded:
                         Image(systemName: "icloud.and.arrow.up")
                             .font(.system(size: 11))
@@ -427,4 +439,96 @@ struct PhotoThumbnailView: View {
         isUploaded: false
     )
     .frame(width: 120, height: 120)
+}
+
+/// Bottom-right badge for a photo in the upload queue: a ring that fills with
+/// upload progress, like Google Photos backup. Observes only its own item so
+/// progress ticks re-render this badge, not the grid.
+private struct UploadProgressBadge: View {
+    @ObservedObject var item: UploadItem
+
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 22, height: 22)
+                    content
+                }
+                .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 1)
+                .accessibilityLabel(item.statusText)
+            }
+        }
+        .padding(4)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch item.status {
+        case .pending:
+            // Queued, not started: a clock, so it can't pass for a cloud state.
+            Image(systemName: "clock")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.gray)
+        case .preparing:
+            SpinningRing(color: .blue)
+            arrow(color: .blue)
+        case .uploading:
+            ring(progress: max(item.progress, 0.03), color: .blue, dashed: false)
+            arrow(color: .blue)
+        case .processing:
+            ring(progress: 1, color: .blue, dashed: false)
+            arrow(color: .blue)
+        case .completed:
+            Image(systemName: "checkmark.icloud.fill")
+                .font(.system(size: 13))
+                .foregroundColor(.green)
+        case .failed:
+            Image(systemName: "exclamationmark.icloud")
+                .font(.system(size: 12))
+                .foregroundColor(.red)
+        }
+    }
+
+    private func arrow(color: Color) -> some View {
+        Image(systemName: "arrow.up")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundColor(color)
+    }
+
+    @ViewBuilder
+    private func ring(progress: Double?, color: Color, dashed: Bool) -> some View {
+        let style = StrokeStyle(lineWidth: 2, lineCap: .round, dash: dashed ? [2, 2] : [])
+        ZStack {
+            Circle()
+                .stroke(color.opacity(dashed ? 0.6 : 0.2), style: style)
+            if let progress {
+                Circle()
+                    .trim(from: 0, to: min(progress, 1))
+                    .stroke(color, style: style)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.2), value: progress)
+            }
+        }
+        .frame(width: 18, height: 18)
+    }
+}
+
+/// Indeterminate ring while an item is being read from PhotoKit.
+private struct SpinningRing: View {
+    let color: Color
+    @State private var isRotating = false
+
+    var body: some View {
+        Circle()
+            .trim(from: 0, to: 0.3)
+            .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+            .frame(width: 18, height: 18)
+            .rotationEffect(.degrees(isRotating ? 360 : 0))
+            .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: isRotating)
+            .onAppear { isRotating = true }
+    }
 }
