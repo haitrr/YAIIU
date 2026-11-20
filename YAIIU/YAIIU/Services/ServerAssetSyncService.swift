@@ -42,10 +42,31 @@ protocol ServerAssetSyncStore {
 extension ImmichAPIService: ServerAssetSyncAPI {}
 extension DatabaseManager: ServerAssetSyncStore {}
 
-/// Serializes Immich server-cache mutations with foreground hash verification.
-/// A sync and a multi-resource check must never observe each other's partial state.
+/// FIFO async mutex. Two instances split what verification must exclude:
+///
+/// - `shared`: the server sync, which rewrites the server-asset cache and
+///   invalidates checks of matching hashes. A check must never read it half-written.
+/// - `localHashes`: PhotoKit reconciliation, which invalidates and re-dates
+///   local hashes. A check must never bind a result to a hash it is replacing.
+///
+/// The sync and reconciliation touch different state and both only push hashes
+/// toward "unchecked", so they run side by side: hashing no longer waits for a
+/// server sync. Verification holds both, via acquireForVerification().
 actor ServerAssetVerificationGate {
     static let shared = ServerAssetVerificationGate()
+    static let localHashes = ServerAssetVerificationGate()
+
+    /// Always takes `shared` before `localHashes`; nothing holds the second
+    /// while waiting for the first, so the pair cannot deadlock.
+    static func acquireForVerification() async {
+        await shared.acquire()
+        await localHashes.acquire()
+    }
+
+    static func releaseForVerification() async {
+        await localHashes.release()
+        await shared.release()
+    }
 
     private var held = false
     private var waiters: [CheckedContinuation<Void, Never>] = []

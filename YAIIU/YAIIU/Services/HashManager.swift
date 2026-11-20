@@ -1003,9 +1003,9 @@ class HashManager: ObservableObject {
             // Protect the entire read/verification/write cycle against an
             // Immich delta mutating the cache concurrently. Acquire the gate
             // BEFORE selecting unchecked records to include the latest delta.
-            await ServerAssetVerificationGate.shared.acquire()
+            await ServerAssetVerificationGate.acquireForVerification()
             defer {
-                Task { await ServerAssetVerificationGate.shared.release() }
+                Task { await ServerAssetVerificationGate.releaseForVerification() }
             }
             guard let self, self.isCurrentRun(runID), !Task.isCancelled else { return }
 
@@ -1192,16 +1192,17 @@ class HashManager: ObservableObject {
     /// and announces the ones missing from the server. Assets left unchecked
     /// here are verified by the end-of-run batch check as before.
     private func verifyHashedAssets(_ identifiers: [String], runID: UUID) async {
+        guard isCurrentRun(runID), !shouldStop else { return }
+        // Waits while a server sync is running, so a check made during the
+        // launch sync uses its result, and a first login gets its baseline.
+        await ServerAssetVerificationGate.acquireForVerification()
+        defer {
+            Task { await ServerAssetVerificationGate.releaseForVerification() }
+        }
         // Same rule as startServerCheck: no negative result without a baseline.
         guard isCurrentRun(runID), !shouldStop,
               let syncMetadata = DatabaseManager.shared.getSyncMetadata(),
-              syncMetadata.lastSyncTime != nil else { return }
-
-        await ServerAssetVerificationGate.shared.acquire()
-        defer {
-            Task { await ServerAssetVerificationGate.shared.release() }
-        }
-        guard isCurrentRun(runID), !shouldStop,
+              syncMetadata.lastSyncTime != nil,
               let candidates = DatabaseManager.shared.verifyHashCacheBatch(
                   identifiers: identifiers, ownerId: syncMetadata.userId
               ) else { return }

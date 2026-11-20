@@ -968,12 +968,13 @@ struct PhotoGridView: View {
         logInfo("Foreground PhotoKit work preparation started", category: .hash)
         Task.detached(priority: .utility) {
             // PhotoKit hash invalidation must not race with a server checksum
-            // check that is about to write its verification result.
+            // check that is about to write its verification result. A server
+            // sync does not block this; see ServerAssetVerificationGate.
             logInfo("Foreground PhotoKit work waiting for verification gate", category: .hash)
-            await ServerAssetVerificationGate.shared.acquire()
+            await ServerAssetVerificationGate.localHashes.acquire()
             logInfo("Foreground PhotoKit verification gate acquired", category: .hash)
             let work = manager.prepareForegroundPhotoWork()
-            await ServerAssetVerificationGate.shared.release()
+            await ServerAssetVerificationGate.localHashes.release()
             logInfo("Foreground PhotoKit verification gate released", category: .hash)
             await MainActor.run {
                 logInfo("Foreground PhotoKit preparation completed", category: .hash)
@@ -2026,10 +2027,14 @@ struct PhotoGridView: View {
         if !hashManager.isProcessing {
             hashManager.setPreparingState()
         }
-        
+
+        // Hashing is local and runs alongside the sync. Only verification
+        // needs the synced server cache, and it waits for the sync on its own
+        // (ServerAssetVerificationGate).
+        startBackgroundProcessing()
+
         guard !serverURL.isEmpty && !apiKey.isEmpty else {
             logDebug("Server sync skipped: server not configured", category: .sync)
-            startBackgroundProcessing()
             return
         }
         
@@ -2061,6 +2066,8 @@ struct PhotoGridView: View {
         case .failure(let error):
             logError("Auto sync failed: \(error.localizedDescription)", category: .sync)
         }
+        // Verify what the sync invalidated. While the launch run is still
+        // active this only marks a follow-up pass, which runs when it ends.
         startBackgroundProcessing()
     }
 }

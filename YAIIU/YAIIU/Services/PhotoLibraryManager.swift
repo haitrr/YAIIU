@@ -826,13 +826,13 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
         // under the same gate before a server check can trust them.
         // Keep this work off the importer's/UI's completion path.
         Task.detached(priority: .utility) { [weak self] in
-            await ServerAssetVerificationGate.shared.acquire()
+            await ServerAssetVerificationGate.localHashes.acquire()
             guard let self else {
-                await ServerAssetVerificationGate.shared.release()
+                await ServerAssetVerificationGate.localHashes.release()
                 return
             }
             _ = self.prepareForegroundPhotoWork(forceVersionBaseline: true)
-            await ServerAssetVerificationGate.shared.release()
+            await ServerAssetVerificationGate.localHashes.release()
         }
     }
 
@@ -938,7 +938,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     private func prepareForegroundPhotoWork(forceVersionBaseline: Bool) -> ForegroundPhotoWork {
         Self.foregroundChangeQueue.sync {
             let result = prepareForegroundPhotoWorkLocked()
-            // Caller holds ServerAssetVerificationGate across this method.
+            // Caller holds ServerAssetVerificationGate.localHashes across this method.
             // Backfill may invalidate old checksums; never let server
             // verification bind an iCloud ID using one of those stale hashes.
             // This still executes on PhotoGrid's detached utility task, not

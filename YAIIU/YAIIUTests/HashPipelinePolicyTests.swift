@@ -618,3 +618,53 @@ final class PhotoLibraryFilterTests: XCTestCase {
         )
     }
 }
+
+final class ServerAssetVerificationGateTests: XCTestCase {
+    private actor Flag {
+        private(set) var isSet = false
+        func set() { isSet = true }
+    }
+
+    func testReconciliationRunsDuringSyncWhileVerificationWaitsForIt() async {
+        // A server sync is in progress.
+        await ServerAssetVerificationGate.shared.acquire()
+
+        // PhotoKit reconciliation, and so hashing, does not wait for it.
+        await ServerAssetVerificationGate.localHashes.acquire()
+        await ServerAssetVerificationGate.localHashes.release()
+
+        // Verification does, until the sync has finished writing.
+        let verified = Flag()
+        let verification = Task {
+            await ServerAssetVerificationGate.acquireForVerification()
+            await verified.set()
+            await ServerAssetVerificationGate.releaseForVerification()
+        }
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        let verifiedDuringSync = await verified.isSet
+        XCTAssertFalse(verifiedDuringSync)
+
+        await ServerAssetVerificationGate.shared.release()
+        await verification.value
+        let verifiedAfterSync = await verified.isSet
+        XCTAssertTrue(verifiedAfterSync)
+    }
+
+    func testVerificationExcludesReconciliation() async {
+        await ServerAssetVerificationGate.acquireForVerification()
+        let reconciled = Flag()
+        let reconciliation = Task {
+            await ServerAssetVerificationGate.localHashes.acquire()
+            await reconciled.set()
+            await ServerAssetVerificationGate.localHashes.release()
+        }
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        let reconciledDuringVerification = await reconciled.isSet
+        XCTAssertFalse(reconciledDuringVerification)
+
+        await ServerAssetVerificationGate.releaseForVerification()
+        await reconciliation.value
+        let reconciledAfterVerification = await reconciled.isSet
+        XCTAssertTrue(reconciledAfterVerification)
+    }
+}
