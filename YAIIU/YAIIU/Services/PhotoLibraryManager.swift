@@ -1401,6 +1401,7 @@ final class PhotoLibraryManager: NSObject, ObservableObject, PHPhotoLibraryChang
     static func uploadableResourceIndices(
         _ resources: [(type: PHAssetResourceType, uniformTypeIdentifier: String)]
     ) -> [Int] {
+        if DeferredPhotoProcessingPolicy.isAwaitingProcessing(resources.map(\.type)) { return [] }
         var jpegIndex: Int?
         var rawIndex: Int?
         var videoIndex: Int?

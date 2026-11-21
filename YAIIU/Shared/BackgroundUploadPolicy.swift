@@ -116,6 +116,16 @@ enum UploadResourceKind {
     }
 }
 
+/// iOS deferred photo processing saves a capture first as a `.photoProxy`
+/// and replaces it with the final `.photo` once the image pipeline finishes.
+/// Nothing from such an asset (still or Live Photo clip) is hashed or
+/// uploaded until then; the replacement arrives as a PhotoKit change.
+enum DeferredPhotoProcessingPolicy {
+    static func isAwaitingProcessing(_ types: [PHAssetResourceType]) -> Bool {
+        types.contains(.photoProxy)
+    }
+}
+
 /// A Live Photo's motion clip is a .pairedVideo resource; editing the photo adds a
 /// .fullSizePairedVideo holding the edited clip.
 enum LivePhotoResourcePolicy {
