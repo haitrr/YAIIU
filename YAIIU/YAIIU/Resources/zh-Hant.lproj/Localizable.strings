@@ -172,6 +172,7 @@
 "uploadProgress.hint.checkingServer" = "已計算雜湊，尚未與伺服器核對";
 "uploadProgress.hint.notUploaded" = "不在伺服器上，也未排隊";
 "uploadProgress.hashing" = "正在計算雜湊 %d/%d";
+"uploadProgress.hashingNow" = "正在計算雜湊";
 "uploadProgress.stage.empty" = "沒有照片";
 "uploadProgress.duplicate" = "伺服器上已存在";
 "uploadProgress.photoCount" = "%d 張照片";

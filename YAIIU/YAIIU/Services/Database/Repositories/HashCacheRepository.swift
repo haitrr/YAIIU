@@ -1042,7 +1042,11 @@ final class HashCacheRepository {
                         let hasUploadedRAW = uploadedTypes.contains("raw")
                         
                         var isFullyUploaded = false
-                        
+                        // This device's own upload records need no server check.
+                        let isUploadedByThisDevice = hasRAW
+                            ? hasUploadedNonRAW && hasUploadedRAW
+                            : hasUploadedNonRAW || hasUploadedRAW
+
                         if hasRAW {
                             let primaryComplete = hasUploadedNonRAW || primaryOnServer
                             let rawComplete = hasUploadedRAW || rawOnServer
@@ -1052,7 +1056,9 @@ final class HashCacheRepository {
                             isFullyUploaded = hasUploadedPrimary || primaryOnServer
                         }
                         
-                        if !hasBeenChecked && hasServerCache {
+                        if isUploadedByThisDevice {
+                            statusMap[identifier] = .uploaded
+                        } else if !hasBeenChecked && hasServerCache {
                             statusMap[identifier] = .pending
                         } else if isFullyUploaded {
                             statusMap[identifier] = .uploaded

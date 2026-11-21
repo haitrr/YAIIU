@@ -171,6 +171,7 @@
 "uploadProgress.hint.checkingServer" = "ハッシュ済み、サーバー未確認";
 "uploadProgress.hint.notUploaded" = "サーバーになく、待機列にもありません";
 "uploadProgress.hashing" = "ハッシュ計算中 %d/%d";
+"uploadProgress.hashingNow" = "ハッシュ計算中";
 "uploadProgress.stage.empty" = "写真はありません";
 "uploadProgress.duplicate" = "サーバーに既存";
 "uploadProgress.photoCount" = "%d枚";

@@ -171,6 +171,7 @@
 "uploadProgress.hint.checkingServer" = "Con hash, aún sin comprobar en el servidor";
 "uploadProgress.hint.notUploaded" = "No está en el servidor ni en cola";
 "uploadProgress.hashing" = "Calculando hash %d/%d";
+"uploadProgress.hashingNow" = "Calculando hash";
 "uploadProgress.stage.empty" = "No hay fotos";
 "uploadProgress.duplicate" = "Ya en el servidor";
 "uploadProgress.photoCount" = "%d fotos";

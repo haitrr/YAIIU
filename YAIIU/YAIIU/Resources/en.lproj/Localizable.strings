@@ -172,6 +172,7 @@
 "uploadProgress.hint.checkingServer" = "Hashed, not yet checked against the server";
 "uploadProgress.hint.notUploaded" = "Not on the server and not queued";
 "uploadProgress.hashing" = "Hashing %d/%d";
+"uploadProgress.hashingNow" = "Hashing";
 "uploadProgress.stage.empty" = "No photos here";
 "uploadProgress.duplicate" = "Already on server";
 "uploadProgress.photoCount" = "%d photos";

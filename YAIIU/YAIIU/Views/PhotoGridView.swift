@@ -487,17 +487,11 @@ struct PhotoGridView: View {
                                 dragState.reset()
                             }
                         } else {
-                            // Keep this navigation item dedicated to filtering:
-                            // processing labels are drawn on a separate content
-                            // row so they can never compress or cover the menu.
+                            // Keep this navigation item dedicated to filtering.
                             filterMenuButton
                         }
                     }
                     
-                    ToolbarItem(placement: .principal) {
-                        navigationTitleView
-                    }
-
                     ToolbarItem(placement: .navigationBarTrailing) {
                         if !isSelectionMode {
                             Button(L10n.PhotoGrid.select) {
@@ -830,82 +824,11 @@ struct PhotoGridView: View {
         }
     }
     
-    private var showsTitleProcessingIndicator: Bool {
-        hashManager.isProcessing && photoLibraryManager.foregroundBaselineProgress == nil
-    }
-
-    /// Hash progress lives in the title so the grid never shifts when a
-    /// processing pass starts or ends.
-    private var navigationTitleView: some View {
-        HStack(spacing: 6) {
-            if !navigationTitle.isEmpty {
-                Text(navigationTitle)
-                    .font(.headline)
-                    .lineLimit(1)
-            }
-            if showsTitleProcessingIndicator {
-                ProgressView()
-                    .controlSize(.small)
-                Text(getCompactProcessingStatusText())
-                    .font(.caption.monospacedDigit())
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            showsTitleProcessingIndicator
-                ? "\(navigationTitle) \(getProcessingStatusText())"
-                : navigationTitle
-        )
-    }
-
-    private func getCompactProcessingStatusText() -> String {
-        switch processingStage {
-        case let .analyzing(current, total):
-            return current > 0 && total > 0
-                ? "\(current)/\(total)"
-                : L10n.PhotoGrid.processingPreparing
-        case let .checking(current, total):
-            return current > 0 && total > 0
-                ? "\(current)/\(total)"
-                : L10n.PhotoGrid.processingPreparing
-        default:
-            return L10n.PhotoGrid.processingPreparing
-        }
-    }
-    
-    private func getProcessingStatusText() -> String {
-        switch processingStage {
-        case let .analyzing(current, total):
-            return total > 0 && current > 0
-                ? "\(current)/\(total)"
-                : L10n.PhotoGrid.processingPreparing
-        case let .checking(current, total):
-            return total > 0 && current > 0
-                ? L10n.PhotoGrid.processingComparing(current, total)
-                : L10n.PhotoGrid.processingPreparing
-        default:
-            return L10n.PhotoGrid.processingPreparing
-        }
-    }
-
     private func getProcessingDetailText() -> String {
         if let progress = photoLibraryManager.foregroundBaselineProgress {
             return L10n.PhotoGrid.processingBaseline(progress.completed, progress.total)
         }
         return L10n.PhotoGrid.processingReadingPhotoLibrary
-    }
-
-    private var processingStage: PhotoGridProcessingStage {
-        PhotoGridProcessingStage.resolve(
-            statusMessage: hashManager.statusMessage,
-            processed: hashManager.processedAssetsCount,
-            total: hashManager.totalAssetsToProcess,
-            isSyncing: isSyncing,
-            foregroundWorkPreparing: foregroundWorkPreparing
-        )
     }
 
     @ViewBuilder
@@ -2106,7 +2029,7 @@ private struct PhotoGridItemView: View {
     @State private var appliedEditGeneration: Int?
     @State private var observedAssetIdentifier: String?
     @State private var observedContentRevision: PhotoAssetContentRevision?
-    @State private var syncStatus: PhotoSyncStatus = .pending
+    @State private var syncStatus: PhotoSyncStatus?
     @State private var uploadItem: UploadItem?
     
     var body: some View {
@@ -2170,7 +2093,7 @@ private struct PhotoGridItemView: View {
         }
         .onReceive(hashManager.$syncStatusCache.receive(on: RunLoop.main)) { newCache in
             guard let id = asset?.localIdentifier else { return }
-            let newStatus = newCache[id] ?? .pending
+            let newStatus = newCache[id]
             if syncStatus != newStatus {
                 syncStatus = newStatus
             }
@@ -2222,7 +2145,7 @@ private struct PhotoGridItemView: View {
                 observedAssetIdentifier = id
                 observedContentRevision = revision
             }
-            syncStatus = hashManager.getSyncStatus(for: id)
+            syncStatus = hashManager.syncStatusCache[id]
         } else {
             appliedEditGeneration = nil
             observedAssetIdentifier = nil

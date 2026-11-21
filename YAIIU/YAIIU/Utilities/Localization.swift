@@ -322,6 +322,7 @@ enum L10n {
         static var retryFailed: String { "uploadProgress.retryFailed".localized }
         static var stageEmpty: String { "uploadProgress.stage.empty".localized }
         static var duplicate: String { "uploadProgress.duplicate".localized }
+        static var hashingNow: String { "uploadProgress.hashingNow".localized }
         static func hashing(_ done: Int, _ total: Int) -> String {
             return "uploadProgress.hashing".localized(with: done, total)
         }

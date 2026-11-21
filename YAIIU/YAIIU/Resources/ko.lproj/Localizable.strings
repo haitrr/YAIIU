@@ -171,6 +171,7 @@
 "uploadProgress.hint.checkingServer" = "해시됨, 서버 확인 전";
 "uploadProgress.hint.notUploaded" = "서버에 없고 대기열에도 없음";
 "uploadProgress.hashing" = "해시 계산 중 %d/%d";
+"uploadProgress.hashingNow" = "해시 계산 중";
 "uploadProgress.stage.empty" = "사진 없음";
 "uploadProgress.duplicate" = "서버에 이미 있음";
 "uploadProgress.photoCount" = "사진 %d장";

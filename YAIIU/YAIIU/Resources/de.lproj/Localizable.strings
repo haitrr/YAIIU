@@ -171,6 +171,7 @@
 "uploadProgress.hint.checkingServer" = "Gehasht, noch nicht mit dem Server abgeglichen";
 "uploadProgress.hint.notUploaded" = "Nicht auf dem Server und nicht in der Warteschlange";
 "uploadProgress.hashing" = "Hashen %d/%d";
+"uploadProgress.hashingNow" = "Hash wird berechnet";
 "uploadProgress.stage.empty" = "Keine Fotos";
 "uploadProgress.duplicate" = "Bereits auf dem Server";
 "uploadProgress.photoCount" = "%d Fotos";

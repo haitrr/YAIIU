@@ -171,6 +171,7 @@
 "uploadProgress.hint.checkingServer" = "已计算哈希，尚未与服务器核对";
 "uploadProgress.hint.notUploaded" = "不在服务器上，也未排队";
 "uploadProgress.hashing" = "正在计算哈希 %d/%d";
+"uploadProgress.hashingNow" = "正在计算哈希";
 "uploadProgress.stage.empty" = "没有照片";
 "uploadProgress.duplicate" = "服务器上已存在";
 "uploadProgress.photoCount" = "%d 张照片";
