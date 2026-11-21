@@ -941,7 +941,10 @@ final class BackgroundUploadExtensionCore {
             let allResources = PHAssetResource.assetResources(for: asset)
             let resources = self.uploadableResources(allResources)
             let resourceAvailabilityUnknown = allResources.isEmpty
-            var assetHasOutstandingWork = false
+            // Keep the queue row until iOS replaces the proxy with the final photo.
+            var assetHasOutstandingWork = DeferredPhotoProcessingPolicy.isAwaitingProcessing(
+                allResources.map(\.type)
+            )
 
             for resource in resources {
                 let type = self.resourceTypeString(for: resource)
@@ -1213,6 +1216,7 @@ final class BackgroundUploadExtensionCore {
     /// Drops the original clip of an edited Live Photo; the edited
     /// .fullSizePairedVideo is uploaded instead.
     private func uploadableResources(_ resources: [PHAssetResource]) -> [PHAssetResource] {
+        if DeferredPhotoProcessingPolicy.isAwaitingProcessing(resources.map(\.type)) { return [] }
         let superseded = LivePhotoResourcePolicy.supersededPairedVideoIndices(in: resources.map(\.type))
         return resources.enumerated()
             .filter { shouldUpload($0.element) && !superseded.contains($0.offset) }

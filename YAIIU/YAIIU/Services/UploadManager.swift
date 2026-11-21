@@ -83,6 +83,7 @@ enum TimezoneGeocodingError: Error {
 }
 private struct UploadPreparation: @unchecked Sendable {
     let resources: [PHAssetResource]
+    let isAwaitingProcessing: Bool
     let isFavorite: Bool
     let createdAt: Date
     let modifiedAt: Date
@@ -521,6 +522,9 @@ class UploadManager: ObservableObject {
             let timezone = await Self.getTimezone(for: asset)
             return UploadPreparation(
                 resources: resources,
+                isAwaitingProcessing: DeferredPhotoProcessingPolicy.isAwaitingProcessing(
+                    PhotoLibraryManager.shared.getAssetResources(for: asset).map(\.type)
+                ),
                 isFavorite: asset.isFavorite,
                 createdAt: asset.creationDate ?? Date(),
                 modifiedAt: asset.modificationDate ?? Date(),
@@ -541,6 +545,10 @@ class UploadManager: ObservableObject {
 
         guard totalResources > 0 else {
             onTransferFinished()
+            if metadata.isAwaitingProcessing {
+                logInfo("Upload deferred: iOS is still processing \(localIdentifier)", category: .upload)
+                throw ImmichAPIError.uploadFailed(reason: "iOS is still processing this photo; try again once it finishes")
+            }
             logWarning("No uploadable resources found for: \(item.filename)", category: .upload)
             throw ImmichAPIError.uploadFailed(reason: "No uploadable resources for \(item.filename)")
         }

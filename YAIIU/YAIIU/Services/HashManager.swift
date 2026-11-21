@@ -810,6 +810,22 @@ class HashManager: ObservableObject {
         let fetchResult = PHAsset.fetchAssets(withLocalIdentifiers: [identifier], options: nil)
         guard isCurrentRun(runID), !shouldStop, !Task.isCancelled else { return }
 
+        // Leave it unhashed: iOS replacing the proxy is a PhotoKit change,
+        // which starts a new run that finds it still needing a hash.
+        if let asset = fetchResult.firstObject,
+           DeferredPhotoProcessingPolicy.isAwaitingProcessing(
+               PHAssetResource.assetResources(for: asset).map(\.type)
+           ) {
+            logInfo("Hash deferred: iOS is still processing asset=\(identifier)", category: .hash)
+            await MainActor.run {
+                guard self.isCurrentRun(runID) else { return }
+                self.syncStatusCache[identifier] = nil
+                self.processedAssetsCount += 1
+                self.objectWillChange.send()
+            }
+            return
+        }
+
         guard let asset = fetchResult.firstObject,
               let resources = AssetResourceSelector.select(for: asset) else {
             await MainActor.run {

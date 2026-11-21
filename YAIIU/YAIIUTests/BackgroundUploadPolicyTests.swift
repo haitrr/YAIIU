@@ -196,6 +196,28 @@ final class LivePhotoResourceSelectionTests: XCTestCase {
         XCTAssertEqual(selectedTypes(resources), ["jpeg", "raw", "live_video"])
     }
 
+    func testPhotoStillBeingProcessedByIOSIsAwaitingProcessing() {
+        XCTAssertTrue(DeferredPhotoProcessingPolicy.isAwaitingProcessing([.photoProxy]))
+        XCTAssertTrue(DeferredPhotoProcessingPolicy.isAwaitingProcessing([.photoProxy, .pairedVideo]))
+        XCTAssertFalse(DeferredPhotoProcessingPolicy.isAwaitingProcessing([.photo]))
+        XCTAssertFalse(DeferredPhotoProcessingPolicy.isAwaitingProcessing([.photo, .adjustmentData, .fullSizePhoto]))
+        XCTAssertFalse(DeferredPhotoProcessingPolicy.isAwaitingProcessing([]))
+    }
+
+    func testProxyOnlyPhotoHasNothingToUploadUntilIOSFinishesProcessing() {
+        // The fallback for unrecognised resources must not pick the proxy.
+        let resources: [Candidate] = [(.photoProxy, "public.heic")]
+        XCTAssertEqual(PhotoLibraryManager.uploadableResourceIndices(resources), [])
+    }
+
+    func testProxyLivePhotoUploadsNeitherStillNorClipUntilProcessed() {
+        let resources: [Candidate] = [
+            (.photoProxy, "public.heic"),
+            (.pairedVideo, "com.apple.quicktime-movie"),
+        ]
+        XCTAssertEqual(PhotoLibraryManager.uploadableResourceIndices(resources), [])
+    }
+
     func testPreferredPairedVideoIndexPrefersFullSize() {
         XCTAssertEqual(LivePhotoResourcePolicy.preferredPairedVideoIndex(in: [.photo, .pairedVideo]), 1)
         XCTAssertEqual(
