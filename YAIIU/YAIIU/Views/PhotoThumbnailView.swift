@@ -119,7 +119,8 @@ struct PhotoThumbnailView: View {
     let asset: PHAsset
     let isSelected: Bool
     let isSelectionMode: Bool
-    let syncStatus: PhotoSyncStatus
+    /// nil: not hashed yet. .pending: hashed, waiting for the server check.
+    let syncStatus: PhotoSyncStatus?
     let namespace: Namespace.ID?
     let refreshToken: UUID?
     let targetSize: CGSize
@@ -144,7 +145,7 @@ struct PhotoThumbnailView: View {
         self.asset = asset
         self.isSelected = isSelected
         self.isSelectionMode = isSelectionMode
-        self.syncStatus = isUploaded ? .uploaded : .pending
+        self.syncStatus = isUploaded ? .uploaded : nil
         self.namespace = nil
         self.refreshToken = nil
         self.targetSize = ThumbnailCache.defaultTargetSize
@@ -176,7 +177,7 @@ struct PhotoThumbnailView: View {
         self.isGeometrySource = isGeometrySource
     }
     
-    init(asset: PHAsset, isSelected: Bool, isSelectionMode: Bool, syncStatus: PhotoSyncStatus, namespace: Namespace.ID?, refreshToken: UUID?, targetSize: CGSize = ThumbnailCache.defaultTargetSize, editGeneration: Int? = nil, isGeometrySource: Bool = true, uploadItem: UploadItem? = nil) {
+    init(asset: PHAsset, isSelected: Bool, isSelectionMode: Bool, syncStatus: PhotoSyncStatus?, namespace: Namespace.ID?, refreshToken: UUID?, targetSize: CGSize = ThumbnailCache.defaultTargetSize, editGeneration: Int? = nil, isGeometrySource: Bool = true, uploadItem: UploadItem? = nil) {
         self.uploadItem = uploadItem
         self.asset = asset
         self.isSelected = isSelected
@@ -307,11 +308,14 @@ struct PhotoThumbnailView: View {
     
     private var isStatusUnknown: Bool {
         switch syncStatus {
-        case .pending, .processing, .checking: return true
+        case nil, .pending, .processing, .checking: return true
         default: return false
         }
     }
 
+    /// One distinct glyph per stage, so no two stages share a spinner:
+    /// … not hashed → # hashing → magnifier awaiting server check →
+    /// orange cloud not uploaded (then the upload badge takes over).
     @ViewBuilder
     private var syncStatusBadge: some View {
         VStack {
@@ -326,16 +330,22 @@ struct PhotoThumbnailView: View {
                         .frame(width: 22, height: 22)
 
                     switch syncStatus {
-                    case .pending:
+                    case nil:
                         Image(systemName: "ellipsis")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.white)
                             .accessibilityLabel(L10n.UploadProgress.stage(.waitingForHash))
 
-                    case .processing, .checking:
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(0.6)
+                    case .processing:
+                        Image(systemName: "number")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                            .accessibilityLabel(L10n.UploadProgress.hashingNow)
+
+                    case .pending, .checking:
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
                             .accessibilityLabel(L10n.UploadProgress.stage(.checkingServer))
 
                     case .notUploaded:

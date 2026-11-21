@@ -171,6 +171,7 @@
 "uploadProgress.hint.checkingServer" = "Haché, pas encore vérifié sur le serveur";
 "uploadProgress.hint.notUploaded" = "Absent du serveur et pas en file d’attente";
 "uploadProgress.hashing" = "Hachage %d/%d";
+"uploadProgress.hashingNow" = "Hachage";
 "uploadProgress.stage.empty" = "Aucune photo";
 "uploadProgress.duplicate" = "Déjà sur le serveur";
 "uploadProgress.photoCount" = "%d photos";
