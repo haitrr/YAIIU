@@ -552,6 +552,9 @@ class UploadManager: ObservableObject {
             let responseTracker = ResponseTracker(totalCount: totalResources) { [weak item] in
                 Task { @MainActor in
                     item?.status = .completed
+                    // The badge falls back to the status cache once the run
+                    // drops completed items; without this it reverts to "…".
+                    HashManager.shared.markUploaded(localIdentifier)
                     // The queue must observe .completed before its worker exits;
                     // otherwise the final cleanup can race this UI update.
                     continuation.resume()

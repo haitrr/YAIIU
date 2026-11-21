@@ -2541,6 +2541,28 @@ final class ServerAssetRepositoryTests: XCTestCase {
         XCTAssertEqual(statuses["complete"], .uploaded)
     }
 
+    func testThisDevicesUploadShowsUploadedBeforeServerCheck() {
+        // An unchecked row with a server cache would otherwise read as pending,
+        // flipping a just-uploaded photo's badge back to "…".
+        execute("""
+            INSERT INTO hash_cache (asset_id, sha1_hash, calculated_at, checked_at, is_on_server)
+            VALUES ('just-uploaded', 'hash-a', 0, NULL, 0), ('unchecked', 'hash-b', 0, NULL, 0);
+            """)
+        let done = expectation(description: "status")
+        var statuses: [String: PhotoSyncStatus] = [:]
+        hashRepository.getAllSyncStatusAsync(
+            uploadedResourceTypes: ["just-uploaded": ["heic"]],
+            hasServerCache: true
+        ) {
+            statuses = $0
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+
+        XCTAssertEqual(statuses["just-uploaded"], .uploaded)
+        XCTAssertEqual(statuses["unchecked"], .pending)
+    }
+
     func testLocalPhotoCountTreatsLivePhotoVideoReceiptAloneAsNotUploaded() {
         XCTAssertTrue(hashRepository.beginLocalPhotoInventoryBootstrap())
         XCTAssertTrue(hashRepository.appendLocalPhotoInventoryBatch([

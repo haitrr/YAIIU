@@ -1278,6 +1278,14 @@ class HashManager: ObservableObject {
         runState.owns(runID)
     }
     
+    /// Called when an upload finishes so the grid badge shows the cloud
+    /// check right away. Its upload records make the next SQLite reload agree.
+    @MainActor
+    func markUploaded(_ localIdentifier: String) {
+        guard syncStatusCache[localIdentifier] != .uploaded else { return }
+        syncStatusCache[localIdentifier] = .uploaded
+    }
+
     func getSyncStatus(for localIdentifier: String) -> PhotoSyncStatus {
         return syncStatusCache[localIdentifier] ?? .pending
     }
