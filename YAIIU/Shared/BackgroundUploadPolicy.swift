@@ -25,6 +25,25 @@ public enum BackgroundUploadPolicy {
             return false
         }
     }
+    /// What one extension run may do toward new upload jobs.
+    public struct NewJobWork: Equatable {
+        /// Reading PhotoKit change history into the durable queue is local, so
+        /// it runs on any network and the queue is ready when Wi-Fi returns.
+        public let recordsChanges: Bool
+        /// Discovering resources and creating jobs leads straight to an upload.
+        public let createsJobs: Bool
+    }
+
+    public static func newJobWork(
+        allowCellular: Bool,
+        interface: BackgroundUploadNetworkInterface
+    ) -> NewJobWork {
+        NewJobWork(
+            recordsChanges: true,
+            createsJobs: canCreateNewJobs(allowCellular: allowCellular, interface: interface)
+        )
+    }
+
     public enum RequestPurpose {
         case newJob
         case retry
