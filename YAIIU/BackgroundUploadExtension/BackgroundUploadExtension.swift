@@ -477,23 +477,41 @@ final class BackgroundUploadExtensionCore {
     private func createNewUploadJobs(
         interface: BackgroundUploadNetworkInterface
     ) throws -> NewUploadJobsResult {
-        switch interface {
-        case .unknown:
-            logDebug("Deferring new background upload jobs because network path is unknown")
-            return .remaining
-        case .cellular where !settings.allowCellularBackgroundUpload:
-            logDebug("Deferring new background upload jobs because cellular data is disabled")
-            return .remaining
-        case .unavailable:
-            logDebug("Deferring new background upload jobs because network is unavailable")
-            return .remaining
-        default:
-            guard BackgroundUploadPolicy.canCreateNewJobs(
-                allowCellular: settings.allowCellularBackgroundUpload,
-                interface: interface
-            ) else {
+        let work = BackgroundUploadPolicy.newJobWork(
+            allowCellular: settings.allowCellularBackgroundUpload,
+            interface: interface
+        )
+        let persistentMode = database.loadChangeToken() != nil
+
+        // Recording new photos is local: keep the queue current on any network
+        // so uploads can start as soon as an allowed network returns.
+        if persistentMode && work.recordsChanges {
+            let ingestion = try timeStage("create.ingest") { try ingestPersistentChanges() }
+            switch ingestion {
+            case .ready:
+                break
+            case .requiresBootstrap:
+                // Apple requires a full re-sync after persistent history expires or
+                // can no longer provide complete details. Do that on the next pass.
                 return .remaining
+            case .cancelled:
+                return .deferred
             }
+        }
+
+        // Only creating jobs needs an allowed network: each job is an upload.
+        guard work.createsJobs else {
+            switch interface {
+            case .unknown:
+                logDebug("Deferring new background upload jobs because network path is unknown")
+            case .cellular:
+                logDebug("Deferring new background upload jobs because cellular data is disabled")
+            case .unavailable:
+                logDebug("Deferring new background upload jobs because network is unavailable")
+            case .wifi, .other:
+                logDebug("Deferring new background upload jobs on this network")
+            }
+            return .remaining
         }
 
         let capacity = uploadJobCapacity()
@@ -502,23 +520,9 @@ final class BackgroundUploadExtensionCore {
             return .remaining
         }
 
-        let persistentMode: Bool
         var bootstrapTokenData: Data?
 
-        if database.loadChangeToken() != nil {
-            let ingestion = try timeStage("create.ingest") { try ingestPersistentChanges() }
-            switch ingestion {
-            case .ready:
-                persistentMode = true
-            case .requiresBootstrap:
-                // Apple requires a full re-sync after persistent history expires or
-                // can no longer provide complete details. Do that on the next pass.
-                return .remaining
-            case .cancelled:
-                return .deferred
-            }
-        } else {
-            persistentMode = false
+        if !persistentMode {
             // Keep the original bootstrap checkpoint across every partial scan. Assets
             // edited after an early pass must remain newer than this same checkpoint
             // so persistent history can replay them after the full scan completes.

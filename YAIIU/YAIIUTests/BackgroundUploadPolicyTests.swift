@@ -32,6 +32,29 @@ final class BackgroundUploadPolicyTests: XCTestCase {
     func testUnavailableNetworkDoesNotCreateJobs() {
         XCTAssertFalse(BackgroundUploadPolicy.canCreateNewJobs(allowCellular: true, interface: .unavailable))
     }
+
+    /// Recording PhotoKit changes is local, so it runs on any network; only
+    /// creating upload jobs waits for an allowed network.
+    func testNewPhotosAreRecordedOnAnyNetwork() {
+        let interfaces: [BackgroundUploadNetworkInterface] = [.wifi, .cellular, .other, .unavailable, .unknown]
+        for allowCellular in [false, true] {
+            for interface in interfaces {
+                let work = BackgroundUploadPolicy.newJobWork(allowCellular: allowCellular, interface: interface)
+                XCTAssertTrue(work.recordsChanges, "\(interface), allowCellular=\(allowCellular)")
+                XCTAssertEqual(
+                    work.createsJobs,
+                    BackgroundUploadPolicy.canCreateNewJobs(allowCellular: allowCellular, interface: interface),
+                    "\(interface), allowCellular=\(allowCellular)"
+                )
+            }
+        }
+    }
+
+    func testCellularWithoutPermissionRecordsChangesButCreatesNoJobs() {
+        let work = BackgroundUploadPolicy.newJobWork(allowCellular: false, interface: .cellular)
+        XCTAssertTrue(work.recordsChanges)
+        XCTAssertFalse(work.createsJobs)
+    }
     func testIsolationGroupsPreserveAssetSiblings() {
         let jobs = [
             ("asset-a", "heic"), ("asset-b", "jpeg"),
