@@ -254,7 +254,7 @@ actor AlbumSyncService {
                 }
 
                 guard let remoteAlbum else { continue }
-                let assets = autoreleasepool { PHAsset.fetchAssets(in: localAlbum, options: nil) }
+                let assets = autoreleasepool { PHAsset.fetchAssets(in: localAlbum, options: .library(includeHidden: false)) }
                 for start in stride(from: 0, to: assets.count, by: batchSize) {
                     try checkSession()
                     let localIdentifiers = autoreleasepool {
