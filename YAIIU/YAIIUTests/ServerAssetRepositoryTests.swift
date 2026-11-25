@@ -2563,6 +2563,41 @@ final class ServerAssetRepositoryTests: XCTestCase {
         XCTAssertEqual(statuses["unchecked"], .pending)
     }
 
+    func testBackgroundUploadOfUnhashedPhotoShowsUploadedOnLaunch() {
+        // The extension writes a receipt but no hash row for photos the app
+        // never hashed; the launch snapshot must not show them as unprocessed.
+        let done = expectation(description: "status")
+        var statuses: [String: PhotoSyncStatus] = [:]
+        hashRepository.getAllSyncStatusAsync(
+            uploadedResourceTypes: ["bg-uploaded": ["heic"], "bg-clip-only": ["live_video"]],
+            hasServerCache: true
+        ) {
+            statuses = $0
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+
+        XCTAssertEqual(statuses["bg-uploaded"], .uploaded)
+        XCTAssertNil(statuses["bg-clip-only"])
+    }
+
+    func testLocalPhotoCountExcludesBackgroundUploadOfUnhashedPhoto() {
+        XCTAssertTrue(hashRepository.beginLocalPhotoInventoryBootstrap())
+        XCTAssertTrue(hashRepository.appendLocalPhotoInventoryBatch([
+            (identifier: "bg-uploaded", isHidden: false),
+            (identifier: "bg-clip-only", isHidden: false),
+            (identifier: "never-seen", isHidden: false)
+        ]))
+        XCTAssertTrue(hashRepository.finishLocalPhotoInventoryBootstrap())
+        execute("""
+            INSERT INTO uploaded_assets (asset_id, resource_type, filename, immich_id, uploaded_at)
+            VALUES ('bg-uploaded', 'heic', 'IMG_0001.HEIC', 'still', 1),
+                   ('bg-clip-only', 'live_video', 'IMG_0002.MOV', 'clip', 1);
+            """)
+
+        XCTAssertEqual(hashRepository.countNotUploadedVisibleAssets(), 2)
+    }
+
     func testLocalPhotoCountTreatsLivePhotoVideoReceiptAloneAsNotUploaded() {
         XCTAssertTrue(hashRepository.beginLocalPhotoInventoryBootstrap())
         XCTAssertTrue(hashRepository.appendLocalPhotoInventoryBatch([

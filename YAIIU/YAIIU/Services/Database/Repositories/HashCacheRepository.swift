@@ -1076,13 +1076,22 @@ final class HashCacheRepository {
                 }
             }
             sqlite3_finalize(statement)
-            
+
+            // The background extension records receipts without hashing, so a
+            // photo it uploaded may have no hash row yet. Its receipt alone proves
+            // the upload; a Live Photo clip never stands in for the still.
+            for (identifier, types) in uploadedResourceTypes where statusMap[identifier] == nil {
+                if !types.subtracting([LivePhotoResourcePolicy.resourceType]).isEmpty {
+                    statusMap[identifier] = .uploaded
+                }
+            }
+
             DispatchQueue.main.async {
                 completion(statusMap)
             }
         }
     }
-    
+
     func getAssetsNeedingHashAsync(allIdentifiers: [String], completion: @escaping ([String]) -> Void) {
         guard !allIdentifiers.isEmpty else {
             DispatchQueue.main.async { completion([]) }
@@ -1543,7 +1552,10 @@ final class HashCacheRepository {
                 FROM local_photo_assets a
                 LEFT JOIN hash_cache h ON h.asset_id = a.asset_id
                 WHERE a.is_hidden = 0 AND (
-                    h.asset_id IS NULL
+                    (h.asset_id IS NULL AND NOT EXISTS (
+                        SELECT 1 FROM uploaded_assets u
+                        WHERE u.asset_id = a.asset_id AND u.resource_type != 'live_video'
+                    ))
                     OR (h.checked_at IS NULL AND EXISTS (
                         SELECT 1 FROM server_assets_cache LIMIT 1
                     ))
